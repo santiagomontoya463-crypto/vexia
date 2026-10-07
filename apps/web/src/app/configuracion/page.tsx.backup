@@ -1,7 +1,5 @@
 "use client";
 
-import { useTheme } from "../theme-provider";
-
 import { useEffect, useState } from "react";
 
 type Tab =
@@ -133,7 +131,8 @@ export default function ConfigurationPage() {
   const [saved, setSaved] =
     useState(false);
 
-  const { theme, setTheme } = useTheme();
+  const [theme, setTheme] =
+    useState<Theme>("system");
 
   const [roles, setRoles] =
     useState<Role[]>(initialRoles);
@@ -683,40 +682,50 @@ export default function ConfigurationPage() {
 
                     </div>
 
-                    <div className="flex w-full justify-start">
-                      <div className="vexia-theme-selector">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
-                        <button
-                          type="button"
-                          onClick={() => setTheme("light")}
-                          className={`vexia-theme-option ${
-                            theme === "light" ? "active" : ""
-                          }`}
-                        >
-                          ☀ Claro
-                        </button>
+                      <ThemeCard
+                        selected={
+                          theme === "light"
+                        }
+                        icon="☀"
+                        title="Claro"
+                        description="Interfaz clara y luminosa."
+                        onClick={() =>
+                          handleThemeChange(
+                            "light"
+                          )
+                        }
+                      />
 
-                        <button
-                          type="button"
-                          onClick={() => setTheme("dark")}
-                          className={`vexia-theme-option ${
-                            theme === "dark" ? "active" : ""
-                          }`}
-                        >
-                          ☾ Oscuro
-                        </button>
+                      <ThemeCard
+                        selected={
+                          theme === "dark"
+                        }
+                        icon="☾"
+                        title="Oscuro"
+                        description="Interfaz oscura para ambientes con poca luz."
+                        onClick={() =>
+                          handleThemeChange(
+                            "dark"
+                          )
+                        }
+                      />
 
-                        <button
-                          type="button"
-                          onClick={() => setTheme("system")}
-                          className={`vexia-theme-option ${
-                            theme === "system" ? "active" : ""
-                          }`}
-                        >
-                          ◐ Automático
-                        </button>
+                      <ThemeCard
+                        selected={
+                          theme === "system"
+                        }
+                        icon="◐"
+                        title="Automático"
+                        description="Utiliza la apariencia del dispositivo."
+                        onClick={() =>
+                          handleThemeChange(
+                            "system"
+                          )
+                        }
+                      />
 
-                      </div>
                     </div>
 
                   </div>
