@@ -5,6 +5,7 @@ import {
   createPurchaseRequest,
   loadPurchaseRequests,
   reviewPurchaseRequest,
+  convertApprovedPurchaseRequest,
 } from "@/lib/purchase-requests";
 import type {
   PurchaseRequest,
@@ -14,6 +15,8 @@ import type {
 } from "@/lib/purchase-requests";
 import { loadProducts } from "@/lib/inventory/storage";
 import type { Product } from "@/lib/inventory";
+import { loadSuppliers } from "@/lib/suppliers/storage";
+import type { Supplier } from "@/lib/suppliers/types";
 
 const BUSINESS_ID = "current-business";
 const USER = "Usuario VEXIA";
@@ -109,6 +112,9 @@ function Metric({
 export default function SolicitudesCompraPage() {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [converting, setConverting] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<PurchaseRequest | null>(null);
@@ -131,6 +137,16 @@ export default function SolicitudesCompraPage() {
       ),
     );
   }
+
+  useEffect(() => {
+    const availableSuppliers = loadSuppliers().filter(
+      (supplier) =>
+        supplier.businessId === BUSINESS_ID &&
+        supplier.status === "active",
+    );
+    setSuppliers(availableSuppliers);
+    setSelectedSupplierId(availableSuppliers[0]?.id ?? "");
+  }, []);
 
   useEffect(() => {
     refreshRequests();
@@ -278,6 +294,50 @@ export default function SolicitudesCompraPage() {
       setError(
         err instanceof Error ? err.message : "No fue posible crear la solicitud.",
       );
+    }
+  }
+
+  function handleConvertApprovedRequest() {
+    if (!selected || selected.status !== "approved" || converting) return;
+
+    const supplier = suppliers.find(
+      (item) =>
+        item.id === selectedSupplierId &&
+        item.businessId === BUSINESS_ID &&
+        item.status === "active",
+    );
+
+    if (!supplier) {
+      setMessage("Selecciona un proveedor activo de este negocio.");
+      return;
+    }
+
+    setConverting(true);
+    try {
+      const result = convertApprovedPurchaseRequest({
+        businessId: BUSINESS_ID,
+        requestId: selected.id,
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        createdBy: USER,
+      });
+
+      refreshRequests();
+      setSelected(result.request);
+      setSelectedSupplierId(supplier.id);
+      setMessage(
+        result.alreadyConverted
+          ? "Esta solicitud ya estaba convertida. No se creó una compra duplicada."
+          : `¡Compra creada correctamente! Proveedor: ${supplier.name}. La compra quedó pendiente de recepción; el inventario no cambia hasta registrar la mercancía.`,
+      );
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "No fue posible convertir la solicitud en compra.",
+      );
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -524,6 +584,60 @@ export default function SolicitudesCompraPage() {
                 <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
                   <p className="text-sm font-semibold">Última revisión · {selected.reviewedBy}</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{selected.reviewNotes || "Sin observaciones."}</p>
+                </div>
+              )}
+
+              {selected.status === "approved" && !selected.purchaseId && (
+                <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <div>
+                    <h3 className="font-semibold">Generar compra</h3>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                      Selecciona el proveedor. La compra quedará pendiente y no aumentará el inventario hasta recibirla.
+                    </p>
+                  </div>
+                  <Field label="Proveedor">
+                    <select
+                      value={selectedSupplierId}
+                      onChange={(event) => setSelectedSupplierId(event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Seleccionar proveedor</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {suppliers.length === 0 && (
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Primero registra y activa un proveedor en el módulo Proveedores.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={converting || suppliers.length === 0 || !selectedSupplierId}
+                    onClick={handleConvertApprovedRequest}
+                    className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {converting ? "Generando compra..." : "Convertir solicitud en compra"}
+                  </button>
+                </div>
+              )}
+
+              {selected.status === "converted" && selected.purchaseId && (
+                <div role="status" className="space-y-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white">✓</span>
+                    <div>
+                      <h3 className="font-bold">¡Compra creada correctamente!</h3>
+                      <p className="mt-1">La solicitud {selected.code} ya está vinculada a una compra pendiente.</p>
+                      <p className="mt-1">El inventario no cambiará hasta registrar la recepción de la mercancía.</p>
+                    </div>
+                  </div>
+                  <a href="/finanzas/cuentas-por-pagar" className="inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 font-semibold text-white hover:bg-emerald-800">
+                    Ir a Cuentas por pagar
+                  </a>
                 </div>
               )}
 

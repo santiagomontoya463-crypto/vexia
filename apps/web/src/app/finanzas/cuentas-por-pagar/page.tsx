@@ -12,6 +12,7 @@ import {
 } from "@/lib/purchases/storage";
 import {
   registerPurchasePayment,
+  receivePurchase,
 } from "@/lib/purchases/register";
 import type {
   Purchase,
@@ -118,6 +119,35 @@ export default function CuentasPorPagarPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
   const [message, setMessage] = useState("");
+
+  function handleReceivePurchase(purchase: Purchase) {
+    if (purchase.businessId !== BUSINESS_ID || purchase.status !== "pending") {
+      setMessage("Solo puedes recibir compras pendientes de este negocio.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Confirmas la recepción de la compra de ${purchase.supplierName}? Esta acción actualizará las existencias del inventario.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = receivePurchase(BUSINESS_ID, purchase.id, "Usuario VEXIA");
+      refreshData();
+      setSelectedPurchase(result.purchase);
+      setMessage(
+        result.inventoryMovements.length > 0
+          ? "Recepción registrada. El inventario y el costo de los productos fueron actualizados."
+          : "La compra ya estaba recibida; no se duplicaron las existencias.",
+      );
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "No fue posible registrar la recepción de la compra.",
+      );
+    }
+  }
 
   const purchasesWithBalances = useMemo(() => {
     return purchases.map((purchase) => {
@@ -794,6 +824,16 @@ export default function CuentasPorPagarPage() {
                   </div>
                 )}
               </div>
+
+              {selectedPurchase.status === "pending" && (
+                <button
+                  type="button"
+                  onClick={() => handleReceivePurchase(selectedPurchase)}
+                  className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"
+                >
+                  Registrar recepción y actualizar inventario
+                </button>
+              )}
 
               {selectedPurchase.pendingAmount > 0 &&
                 selectedPurchase.status !== "cancelled" && (
