@@ -2,123 +2,71 @@ export type FinancialMovementType =
   | "income"
   | "expense"
   | "refund"
-  | "transfer";
+  | "transfer"
+  | "adjustment";
 
 export type FinancialSourceType =
   | "sale"
   | "service"
-  | "product"
+  | "work_order"
   | "purchase"
   | "expense"
   | "payment"
   | "refund"
-  | "other";
-
-export type PaymentMethod =
-  | "cash"
-  | "card"
-  | "bank_transfer"
-  | "digital_wallet"
+  | "delivery"
+  | "payroll"
   | "credit"
   | "other";
 
 export type FinancialMovementStatus =
   | "pending"
-  | "confirmed"
+  | "completed"
   | "cancelled";
 
-export type AccountStatus =
-  | "pending"
-  | "partial"
-  | "paid"
-  | "overdue"
-  | "cancelled";
+export type PaymentMethod =
+  | "cash"
+  | "card"
+  | "transfer"
+  | "credit"
+  | "other";
 
 export interface FinancialMovement {
   id: string;
+
   businessId: string;
+
   type: FinancialMovementType;
+
   sourceType: FinancialSourceType;
-  sourceId: string;
-  description: string;
+  sourceId?: string;
+
+  status: FinancialMovementStatus;
+
   amount: number;
+
+  description: string;
+
+  date: string;
+
   paymentMethod?: PaymentMethod;
-  status: FinancialMovementStatus;
-  date: string;
-  userId?: string;
-  branchId?: string;
+
   category?: string;
-  reference?: string;
-}
 
-export interface CashAccount {
-  id: string;
-  businessId: string;
-  name: string;
-  openingBalance: number;
-  currency: string;
-  active: boolean;
-}
+  customerId?: string;
+  workerId?: string;
 
-export interface CashMovement {
-  id: string;
-  businessId: string;
-  cashAccountId: string;
-  financialMovementId: string;
-  direction: "in" | "out";
-  amount: number;
-  date: string;
-  description: string;
-}
+  branchId?: string;
 
-export interface Receivable {
-  id: string;
-  businessId: string;
-  customerId: string;
-  sourceId: string;
-  description: string;
-  total: number;
-  paid: number;
-  dueDate?: string;
-  status: AccountStatus;
-}
+  notes?: string;
 
-export interface Payable {
-  id: string;
-  businessId: string;
-  supplierId: string;
-  sourceId: string;
-  description: string;
-  total: number;
-  paid: number;
-  dueDate?: string;
-  status: AccountStatus;
-}
+  createdBy?: string;
 
-export interface Expense {
-  id: string;
-  businessId: string;
-  category: string;
-  description: string;
-  amount: number;
-  date: string;
-  paymentMethod: PaymentMethod;
-  status: FinancialMovementStatus;
-  userId?: string;
-}
-
-export interface FinancialPeriod {
-  start: string;
-  end: string;
+  createdAt: string;
 }
 
 export interface FinancialSummary {
-  income: number;
-  expenses: number;
-  refunds: number;
+  totalIncome: number;
+  totalExpense: number;
+  totalRefunds: number;
   netResult: number;
-  receivables: number;
-  payables: number;
-  cashBalance: number;
-  marginPercent: number;
 }

@@ -43,6 +43,21 @@ const menuSections = [
         icon: "$",
       },
       {
+        name: "Finanzas",
+        href: "/finanzas",
+        icon: "$",
+      },
+      {
+        name: "Cuentas por cobrar",
+        href: "/finanzas/cuentas-por-cobrar",
+        icon: "↗",
+      },
+      {
+        name: "Cuentas por pagar",
+        href: "/finanzas/cuentas-por-pagar",
+        icon: "↙",
+      },
+      {
         name: "Trabajadores",
         href: "/trabajadores",
         icon: "♙",
@@ -52,6 +67,16 @@ const menuSections = [
   {
     title: "Negocio",
     items: [
+      {
+        name: "Solicitudes de compra",
+        href: "/solicitudes-compra",
+        icon: "🛒",
+      },
+      {
+        name: "Proveedores",
+        href: "/proveedores",
+        icon: "▤",
+      },
       {
         name: "Mi negocio",
         href: "/negocio",
