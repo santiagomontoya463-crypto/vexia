@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   calculatePurchasePaidAmount,
   calculatePurchasePaymentStatus,
@@ -90,17 +90,21 @@ function getPaymentMethodLabel(method: PurchasePaymentMethod) {
 }
 
 export default function CuentasPorPagarPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>(() =>
-    loadPurchases().filter(
-      (purchase) => purchase.businessId === BUSINESS_ID,
-    ),
-  );
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [payments, setPayments] = useState<PurchasePayment[]>([]);
 
-  const [payments, setPayments] = useState<PurchasePayment[]>(() =>
-    loadPurchasePayments().filter(
-      (payment) => payment.businessId === BUSINESS_ID,
-    ),
-  );
+  useEffect(() => {
+    setPurchases(
+      loadPurchases().filter(
+        (purchase) => purchase.businessId === BUSINESS_ID,
+      ),
+    );
+    setPayments(
+      loadPurchasePayments().filter(
+        (payment) => payment.businessId === BUSINESS_ID,
+      ),
+    );
+  }, []);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -569,16 +573,21 @@ export default function CuentasPorPagarPage() {
                               Ver
                             </button>
 
+                            {purchase.status === "pending" && (
+                              <button
+                                type="button"
+                                onClick={() => handleReceivePurchase(purchase)}
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                              >
+                                Registrar recepción
+                              </button>
+                            )}
+
                             {purchase.pendingAmount > 0 &&
-                              purchase.status !==
-                                "cancelled" && (
+                              purchase.status !== "cancelled" && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    openPaymentModal(
-                                      purchase,
-                                    )
-                                  }
+                                  onClick={() => openPaymentModal(purchase)}
                                   className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
                                 >
                                   Registrar pago

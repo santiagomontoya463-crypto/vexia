@@ -5,6 +5,7 @@ import type {
   PurchaseRequestStatus,
 } from "./types";
 import { loadPurchaseRequests, savePurchaseRequests } from "./storage";
+import { createPendingPurchase } from "../purchases/register";
 
 interface CreatePurchaseRequestParams {
   businessId: string;
@@ -115,4 +116,86 @@ export function reviewPurchaseRequest(
   );
 
   return updated;
+}
+
+
+export function convertApprovedPurchaseRequest(params: {
+  businessId: string;
+  requestId: string;
+  supplierId?: string;
+  supplierName: string;
+  createdBy?: string;
+}) {
+  const requests = loadPurchaseRequests();
+  const request = requests.find(
+    (item) => item.id === params.requestId && item.businessId === params.businessId,
+  );
+
+  if (!request) {
+    throw new Error("No se encontró la solicitud de este negocio.");
+  }
+  if (request.status === "converted" && request.purchaseId) {
+    return {
+      request,
+      purchase: undefined,
+      alreadyConverted: true,
+    };
+  }
+  if (request.status !== "approved") {
+    throw new Error("Solo se pueden convertir solicitudes aprobadas.");
+  }
+  if (!params.supplierName.trim()) {
+    throw new Error("Selecciona un proveedor para generar la compra.");
+  }
+
+  const missingProduct = request.items.find((item) => !item.productId);
+  if (missingProduct) {
+    throw new Error(
+      `Asocia "${missingProduct.productName}" con un producto del inventario antes de convertir la solicitud.`,
+    );
+  }
+
+  const purchaseId = `purchase-request-${request.id}`;
+
+  const result = createPendingPurchase({
+    businessId: params.businessId,
+    supplierId: params.supplierId,
+    supplierName: params.supplierName,
+    createdBy: params.createdBy,
+    purchaseId,
+    reference: request.code,
+    date: new Date().toISOString(),
+    notes: [
+      `Generada desde solicitud ${request.code}.`,
+      request.justification,
+      request.reviewNotes ? `Observaciones: ${request.reviewNotes}` : "",
+    ].filter(Boolean).join("\n"),
+    items: request.items.map((item) => ({
+      id: item.id,
+      productId: item.productId!,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitCost: item.estimatedUnitCost,
+      discount: 0,
+      tax: 0,
+      total: item.quantity * item.estimatedUnitCost,
+    })),
+  });
+
+  const updatedRequest = {
+    ...request,
+    status: "converted" as const,
+    purchaseId: result.purchase.id,
+    updatedAt: new Date().toISOString(),
+  };
+
+  savePurchaseRequests(
+    requests.map((item) => item.id === request.id ? updatedRequest : item),
+  );
+
+  return {
+    request: updatedRequest,
+    purchase: result.purchase,
+    alreadyConverted: false,
+  };
 }

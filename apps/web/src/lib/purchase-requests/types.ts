@@ -29,6 +29,7 @@ export interface PurchaseRequest {
   justification: string;
   priority: PurchaseRequestPriority;
   status: PurchaseRequestStatus;
+  purchaseId?: string;
   requiredDate?: string;
   items: PurchaseRequestItem[];
   estimatedTotal: number;
