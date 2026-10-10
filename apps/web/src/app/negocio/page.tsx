@@ -1,17 +1,85 @@
 "use client";
 
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
+import { getActiveBusiness, saveBusiness, setActiveBusinessId } from "../../lib/business";
+import { getBusinessOperations, saveBusinessOperations } from "../../lib/business/operations";
+import { useNotifications } from "../../components/notifications/NotificationProvider";
 export default function BusinessPage() {
+  const { success, error } = useNotifications();
   const [saved, setSaved] = useState(false);
+  const [business, setBusiness] = useState<ReturnType<typeof getActiveBusiness>>();
+  const [operations, setOperations] = useState<ReturnType<typeof getBusinessOperations>>();
+
+  useEffect(() => {
+    const active = getActiveBusiness();
+    setBusiness(active);
+    if (active) setOperations(getBusinessOperations(active.id));
+  }, []);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSaved(true);
 
-    setTimeout(() => {
-      setSaved(false);
-    }, 3000);
+    try {
+      const form = event.currentTarget;
+      const data = new FormData(form);
+      const existing = getActiveBusiness();
+      const now = new Date().toISOString();
+
+      const business = saveBusiness({
+        id: existing?.id ?? `business-${Date.now()}`,
+        name: String(data.get("name") ?? "").trim(),
+        type: String(data.get("type") ?? "Servicios"),
+        description: String(data.get("description") ?? "").trim(),
+        phone: String(data.get("phone") ?? "").trim(),
+        email: String(data.get("email") ?? "").trim(),
+        address: String(data.get("address") ?? "").trim(),
+        countryCode: existing?.countryCode ?? "CO",
+        currency: existing?.currency ?? "COP",
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+
+      setActiveBusinessId(business.id);
+
+      const hours: Record<string, { enabled: boolean; open: string; close: string }> = {};
+      for (const day of ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]) {
+        hours[day] = {
+          enabled: data.get(`hours.${day}.enabled`) === "on",
+          open: String(data.get(`hours.${day}.open`) ?? "08:00"),
+          close: String(data.get(`hours.${day}.close`) ?? "18:00"),
+        };
+      }
+
+      const nextOperations = {
+        businessId: business.id,
+        social: {
+          instagram: String(data.get("instagram") ?? "").trim(),
+          facebook: String(data.get("facebook") ?? "").trim(),
+          tiktok: String(data.get("tiktok") ?? "").trim(),
+          whatsapp: String(data.get("whatsapp") ?? "").trim(),
+          website: String(data.get("website") ?? "").trim(),
+        },
+        hours,
+        cancellationHours: Number(data.get("cancellationHours") ?? 3),
+        rescheduleHours: Number(data.get("rescheduleHours") ?? 3),
+        sundayBookings: data.get("sundayBookings") === "on",
+        appointmentReminders: data.get("appointmentReminders") === "on",
+        updatedAt: now,
+      };
+
+      saveBusinessOperations(nextOperations);
+      setOperations(nextOperations);
+      setBusiness(business);
+      setSaved(true);
+      success("La información de tu negocio se guardó correctamente.");
+      window.setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No fue posible guardar los datos del negocio."
+      );
+    }
   };
 
   return (
@@ -39,7 +107,7 @@ export default function BusinessPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form key={business?.id ?? "new-business"} onSubmit={handleSubmit} className="space-y-6">
 
           {/* INFORMACIÓN GENERAL */}
 
@@ -64,7 +132,8 @@ export default function BusinessPage() {
 
                 <input
                   type="text"
-                  defaultValue="Mi negocio"
+                  name="name"
+                  defaultValue={business?.name ?? "Mi negocio"}
                   placeholder="Ej. VEXIA Studio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -76,7 +145,8 @@ export default function BusinessPage() {
                 </label>
 
                 <select
-                  defaultValue="Servicios"
+                  name="type"
+                  defaultValue={business?.type ?? "Servicios"}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 >
                   <option>Servicios</option>
@@ -97,6 +167,8 @@ export default function BusinessPage() {
                 </label>
 
                 <textarea
+                  name="description"
+                  defaultValue={business?.description ?? ""}
                   rows={4}
                   placeholder="Describe brevemente tu negocio..."
                   className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
@@ -130,6 +202,8 @@ export default function BusinessPage() {
 
                 <input
                   type="tel"
+                  name="phone"
+                  defaultValue={business?.phone ?? ""}
                   placeholder="300 000 0000"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -142,6 +216,8 @@ export default function BusinessPage() {
 
                 <input
                   type="email"
+                  name="email"
+                  defaultValue={business?.email ?? ""}
                   placeholder="contacto@negocio.com"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -154,6 +230,8 @@ export default function BusinessPage() {
 
                 <input
                   type="text"
+                  name="address"
+                  defaultValue={business?.address ?? ""}
                   placeholder="Dirección del negocio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -186,6 +264,8 @@ export default function BusinessPage() {
 
                 <input
                   type="text"
+                  name="instagram"
+                  defaultValue={operations?.social.instagram ?? ""}
                   placeholder="@tunegocio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -198,6 +278,8 @@ export default function BusinessPage() {
 
                 <input
                   type="text"
+                  name="facebook"
+                  defaultValue={operations?.social.facebook ?? ""}
                   placeholder="facebook.com/tunegocio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -210,6 +292,8 @@ export default function BusinessPage() {
 
                 <input
                   type="text"
+                  name="tiktok"
+                  defaultValue={operations?.social.tiktok ?? ""}
                   placeholder="@tunegocio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -222,6 +306,8 @@ export default function BusinessPage() {
 
                 <input
                   type="tel"
+                  name="whatsapp"
+                  defaultValue={operations?.social.whatsapp ?? ""}
                   placeholder="300 000 0000"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -234,6 +320,8 @@ export default function BusinessPage() {
 
                 <input
                   type="url"
+                  name="website"
+                  defaultValue={operations?.social.website ?? ""}
                   placeholder="https://..."
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
@@ -277,7 +365,8 @@ export default function BusinessPage() {
 
                     <input
                       type="checkbox"
-                      defaultChecked={day !== "Domingo"}
+                      name={`hours.${day}.enabled`}
+                      defaultChecked={operations?.hours?.[day]?.enabled ?? day !== "Domingo"}
                       className="h-4 w-4 rounded border-slate-300"
                     />
 
@@ -291,7 +380,8 @@ export default function BusinessPage() {
 
                     <input
                       type="time"
-                      defaultValue="08:00"
+                      name={`hours.${day}.open`}
+                      defaultValue={operations?.hours?.[day]?.open ?? "08:00"}
                       className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     />
 
@@ -301,7 +391,8 @@ export default function BusinessPage() {
 
                     <input
                       type="time"
-                      defaultValue="18:00"
+                      name={`hours.${day}.close`}
+                      defaultValue={operations?.hours?.[day]?.close ?? "18:00"}
                       className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     />
 
@@ -336,7 +427,8 @@ export default function BusinessPage() {
                 </label>
 
                 <select
-                  defaultValue="3"
+                  name="cancellationHours"
+                  defaultValue={String(operations?.cancellationHours ?? 3)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
                 >
                   <option value="1">1 hora</option>
@@ -354,7 +446,8 @@ export default function BusinessPage() {
                 </label>
 
                 <select
-                  defaultValue="3"
+                  name="rescheduleHours"
+                  defaultValue={String(operations?.rescheduleHours ?? 3)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
                 >
                   <option value="1">1 hora</option>
@@ -369,7 +462,8 @@ export default function BusinessPage() {
               <label className="flex items-center gap-3 rounded-xl border border-slate-100 p-4">
                 <input
                   type="checkbox"
-                  defaultChecked
+                  name="sundayBookings"
+                  defaultChecked={operations?.sundayBookings ?? true}
                   className="h-4 w-4 rounded border-slate-300"
                 />
 
@@ -381,7 +475,8 @@ export default function BusinessPage() {
               <label className="flex items-center gap-3 rounded-xl border border-slate-100 p-4">
                 <input
                   type="checkbox"
-                  defaultChecked
+                  name="appointmentReminders"
+                  defaultChecked={operations?.appointmentReminders ?? true}
                   className="h-4 w-4 rounded border-slate-300"
                 />
 

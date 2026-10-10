@@ -43,6 +43,11 @@ const menuSections = [
         icon: "$",
       },
       {
+        name: "Facturación",
+        href: "/facturacion",
+        icon: "▤",
+      },
+      {
         name: "Finanzas",
         href: "/finanzas",
         icon: "$",
