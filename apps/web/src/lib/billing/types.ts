@@ -57,6 +57,7 @@ export interface BillingDocument {
 
   customerId?: string;
   supplierId?: string;
+  issuerSnapshot?: BillingPartySnapshot;
   customerSnapshot?: BillingPartySnapshot;
   supplierSnapshot?: BillingPartySnapshot;
 

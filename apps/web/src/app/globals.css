@@ -1,139 +1,246 @@
 @import "tailwindcss";
 
+/* =========================================================
+   VEXIA — SISTEMA GLOBAL DE APARIENCIA
+   Temas: Claro / Oscuro / Automático
+   ========================================================= */
+
+/* Tailwind CSS v4: activa las variantes dark:* mediante .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------
+   VARIABLES GLOBALES
+   --------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
+  color-scheme: light;
+
+  --background: #f8fafc;
   --foreground: #171717;
+
+  --surface: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --border: #e2e8f0;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+
+  --input-background: #ffffff;
+  --input-border: #d1d5db;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ---------------------------------------------------------
+   TEMA CLARO
+   --------------------------------------------------------- */
+
+html:not(.dark) {
+  color-scheme: light;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
-body {
-  background: var(--background);
+html:not(.dark) body {
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
-/* =========================================================
-   VEXIA - SISTEMA GLOBAL DE APARIENCIA
-   Claro / Oscuro / Automático
-   ========================================================= */
+
+/* ---------------------------------------------------------
+   TEMA OSCURO
+   La clase .dark la administra ThemeProvider.
+   --------------------------------------------------------- */
+
+html.dark {
+  color-scheme: dark;
+
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+
+  --surface: #111827;
+  --surface-secondary: #1e293b;
+  --border: #334155;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --input-background: #1e293b;
+  --input-border: #475569;
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+html.dark body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* ---------------------------------------------------------
+   SUPERFICIES
+   --------------------------------------------------------- */
+
+html.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-slate-50 {
+  background-color: var(--background) !important;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-slate-100 {
+  background-color: var(--surface-secondary) !important;
+}
+
+html.dark .bg-gray-200,
+html.dark .bg-slate-200 {
+  background-color: #334155 !important;
+}
+
+/* ---------------------------------------------------------
+   TEXTOS
+   --------------------------------------------------------- */
+
+html.dark .text-gray-950,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-gray-400,
+html.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* ---------------------------------------------------------
+   BORDES Y DIVISORES
+   --------------------------------------------------------- */
+
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300,
+html.dark .border-slate-100,
+html.dark .border-slate-200 {
+  border-color: var(--border) !important;
+}
+
+html.dark hr {
+  border-color: var(--border);
+}
+
+/* ---------------------------------------------------------
+   CAMPOS DE FORMULARIO
+   --------------------------------------------------------- */
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: var(--input-background);
+  color: var(--text-primary);
+  border-color: var(--input-border);
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--text-muted);
+}
+
+html.dark input:disabled,
+html.dark select:disabled,
+html.dark textarea:disabled {
+  background-color: #0f172a;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+html.dark option {
+  background-color: #111827;
+  color: #f8fafc;
+}
+
+/* ---------------------------------------------------------
+   TABLAS
+   --------------------------------------------------------- */
+
+html.dark table {
+  color: var(--foreground);
+}
+
+html.dark thead {
+  border-color: var(--border);
+}
+
+html.dark tbody tr {
+  border-color: var(--border);
+}
+
+/* ---------------------------------------------------------
+   EFECTOS HOVER
+   --------------------------------------------------------- */
+
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover {
+  background-color: #334155 !important;
+}
+
+html.dark .hover\:bg-white:hover {
+  background-color: #1e293b !important;
+}
+
+/* ---------------------------------------------------------
+   ELEMENTOS NATIVOS
+   --------------------------------------------------------- */
+
+html.dark dialog,
+html.dark [role="dialog"],
+html.dark [role="menu"] {
+  color: var(--foreground);
+}
+
+/* ---------------------------------------------------------
+   TRANSICIONES
+   --------------------------------------------------------- */
 
 html {
-  color-scheme: light;
+  min-height: 100%;
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
 }
 
-html.dark {
-  color-scheme: dark;
+body {
+  min-height: 100%;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
-
-html.dark body {
-  background-color: #0f172a !important;
-  color: #e2e8f0 !important;
-}
-
-/* Fondos principales */
-
-html.dark .bg-slate-50 {
-  background-color: #0f172a !important;
-}
-
-html.dark .bg-white {
-  background-color: #111827 !important;
-}
-
-/* Textos */
-
-html.dark .text-slate-900 {
-  color: #f8fafc !important;
-}
-
-html.dark .text-slate-800 {
-  color: #f1f5f9 !important;
-}
-
-html.dark .text-slate-700 {
-  color: #e2e8f0 !important;
-}
-
-html.dark .text-slate-600 {
-  color: #cbd5e1 !important;
-}
-
-html.dark .text-slate-500 {
-  color: #94a3b8 !important;
-}
-
-html.dark .text-slate-400 {
-  color: #94a3b8 !important;
-}
-
-/* Bordes */
-
-html.dark .border-slate-200 {
-  border-color: #334155 !important;
-}
-
-html.dark .border-slate-100 {
-  border-color: #1e293b !important;
-}
-
-/* Fondos secundarios */
-
-html.dark .bg-slate-100 {
-  background-color: #1e293b !important;
-}
-
-html.dark .bg-slate-50 {
-  background-color: #0f172a !important;
-}
-
-/* Hover */
-
-html.dark .hover\:bg-slate-50:hover {
-  background-color: #1e293b !important;
-}
-
-html.dark .hover\:bg-slate-100:hover {
-  background-color: #334155 !important;
-}
-
-/* Inputs */
-
-html.dark input,
-html.dark select,
-html.dark textarea {
-  background-color: #1e293b !important;
-  color: #f8fafc !important;
-  border-color: #475569 !important;
-}
-
-html.dark input::placeholder,
-html.dark textarea::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* Tablas */
-
-html.dark thead,
-html.dark .bg-slate-50 {
-  border-color: #334155 !important;
-}
-
-/* Transiciones */
 
 body,
 button,
@@ -142,9 +249,31 @@ select,
 textarea,
 section,
 aside,
-div {
+header,
+footer,
+main,
+article,
+nav {
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  section,
+  aside,
+  header,
+  footer,
+  main,
+  article,
+  nav {
+    transition: none;
+  }
 }
