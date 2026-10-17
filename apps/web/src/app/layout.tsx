@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VEXIA",
+  title: "STIAN",
   description: "Gestiona. Conecta. Crece.",
 };
 

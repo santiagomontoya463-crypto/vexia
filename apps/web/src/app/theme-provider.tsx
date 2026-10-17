@@ -2,96 +2,113 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
 
-type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system";
 
 type ThemeContextType = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
 };
 
-const ThemeContext = createContext<ThemeContextType | undefined>(
-  undefined
-);
+const STORAGE_KEY = "vexia-theme";
+
+const ThemeContext = createContext<
+  ThemeContextType | undefined
+>(undefined);
+
+function getStoredTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (
+      stored === "light" ||
+      stored === "dark" ||
+      stored === "system"
+    ) {
+      return stored;
+    }
+  } catch {
+    // Si el almacenamiento no está disponible,
+    // se utiliza la apariencia automática.
+  }
+
+  return "system";
+}
+
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  const prefersDark = window.matchMedia(
+    "(prefers-color-scheme: dark)"
+  ).matches;
+
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" && prefersDark);
+
+  root.classList.toggle("dark", isDark);
+  root.dataset.theme = theme;
+  root.style.colorScheme = isDark ? "dark" : "light";
+}
 
 export function ThemeProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] =
+    useState<Theme>("system");
+
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem(
-      "vexia-theme"
-    ) as Theme | null;
+    const savedTheme = getStoredTheme();
 
-    if (
-      savedTheme === "light" ||
-      savedTheme === "dark" ||
-      savedTheme === "system"
-    ) {
-      setThemeState(savedTheme);
-    }
+    setThemeState(savedTheme);
+    applyTheme(savedTheme);
+    setReady(true);
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
+    if (!ready) return;
 
-    const applyTheme = () => {
-      const isDark =
-        theme === "dark" ||
-        (theme === "system" &&
-          window.matchMedia(
-            "(prefers-color-scheme: dark)"
-          ).matches);
+    applyTheme(theme);
 
-      root.classList.toggle("dark", isDark);
-      root.dataset.theme = theme;
-      root.style.colorScheme = isDark
-        ? "dark"
-        : "light";
-    };
+    if (theme !== "system") return;
 
-    applyTheme();
+    const mediaQuery = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    );
 
-    if (theme === "system") {
-      const mediaQuery = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      );
+    const handleChange = () => applyTheme("system");
 
-      const handleChange = () => applyTheme();
+    mediaQuery.addEventListener("change", handleChange);
 
-      mediaQuery.addEventListener(
+    return () => {
+      mediaQuery.removeEventListener(
         "change",
         handleChange
       );
+    };
+  }, [theme, ready]);
 
-      return () => {
-        mediaQuery.removeEventListener(
-          "change",
-          handleChange
-        );
-      };
-    }
-  }, [theme]);
-
-  const setTheme = (newTheme: Theme) => {
+  const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem(
-      "vexia-theme",
-      newTheme
-    );
-  };
+
+    try {
+      localStorage.setItem(STORAGE_KEY, newTheme);
+    } catch {
+      // La apariencia seguirá funcionando durante
+      // la sesión aunque no se pueda guardar.
+    }
+  }, []);
 
   return (
-    <ThemeContext.Provider
-      value={{ theme, setTheme }}
-    >
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
