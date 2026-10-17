@@ -1,33 +1,55 @@
 @import "tailwindcss";
 
 /* =========================================================
-   VEXIA — SISTEMA GLOBAL DE APARIENCIA
-   Temas: Claro / Oscuro / Automático
+   STIAN — SISTEMA VISUAL GLOBAL
+   Gestiona. Conecta. Crece.
+   Claro · Oscuro · Automático
    ========================================================= */
 
-/* Tailwind CSS v4: activa las variantes dark:* mediante .dark */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------------------------------------------------------
-   VARIABLES GLOBALES
-   --------------------------------------------------------- */
-
+/* Identidad visual global */
 :root {
   color-scheme: light;
 
-  --background: #f8fafc;
-  --foreground: #171717;
+  --background: #f4f7fc;
+  --foreground: #17243b;
 
   --surface: #ffffff;
-  --surface-secondary: #f1f5f9;
-  --border: #e2e8f0;
+  --surface-secondary: #edf2fa;
+  --surface-elevated: #ffffff;
 
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+  --border: #dce5f1;
+  --border-strong: #c5d4e7;
+
+  --text-primary: #17243b;
+  --text-secondary: #53647d;
+  --text-muted: #7889a2;
 
   --input-background: #ffffff;
-  --input-border: #d1d5db;
+  --input-border: #c9d6e7;
+
+  --accent: #3882f6;
+  --accent-secondary: #00b8d9;
+  --accent-tertiary: #6366f1;
+  --accent-violet: #885cff;
+
+  --accent-soft: rgba(56, 130, 246, 0.09);
+  --accent-glow: rgba(56, 130, 246, 0.18);
+  --focus-ring: rgba(56, 130, 246, 0.24);
+
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc3545;
+
+  --shadow-sm: 0 2px 8px rgba(23, 36, 59, 0.04);
+  --shadow-md: 0 8px 24px rgba(23, 36, 59, 0.07);
+  --shadow-lg: 0 16px 44px rgba(23, 36, 59, 0.1);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -36,60 +58,136 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/* ---------------------------------------------------------
-   TEMA CLARO
-   --------------------------------------------------------- */
+/* =========================================================
+   BASE GLOBAL
+   ========================================================= */
+
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+  background: var(--background);
+  color: var(--foreground);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: var(--font-geist-sans), Arial, Helvetica,
+    sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #a9bad0 transparent;
+}
+
+::selection {
+  background: rgba(56, 130, 246, 0.2);
+  color: inherit;
+}
+
+/* =========================================================
+   MODO CLARO
+   ========================================================= */
 
 html:not(.dark) {
   color-scheme: light;
-  background-color: var(--background);
+  background: var(--background);
   color: var(--foreground);
 }
 
 html:not(.dark) body {
-  background-color: var(--background);
+  background:
+    radial-gradient(
+      ellipse at 5% 0%,
+      rgba(56, 130, 246, 0.09),
+      transparent 36rem
+    ),
+    radial-gradient(
+      ellipse at 100% 8%,
+      rgba(0, 184, 217, 0.065),
+      transparent 32rem
+    ),
+    var(--background);
   color: var(--foreground);
 }
 
-/* ---------------------------------------------------------
-   TEMA OSCURO
-   La clase .dark la administra ThemeProvider.
-   --------------------------------------------------------- */
+/* =========================================================
+   MODO OSCURO
+   ========================================================= */
 
 html.dark {
   color-scheme: dark;
 
-  --background: #0f172a;
-  --foreground: #e2e8f0;
+  --background: #071329;
+  --foreground: #e7eefb;
 
-  --surface: #111827;
-  --surface-secondary: #1e293b;
-  --border: #334155;
+  --surface: #0e1c33;
+  --surface-secondary: #142541;
+  --surface-elevated: #172943;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --border: #263a58;
+  --border-strong: #385273;
 
-  --input-background: #1e293b;
-  --input-border: #475569;
+  --text-primary: #f0f5ff;
+  --text-secondary: #b6c6df;
+  --text-muted: #8ea3c1;
 
-  background-color: var(--background);
+  --input-background: #0c1930;
+  --input-border: #344b6b;
+
+  --accent: #5a9bff;
+  --accent-secondary: #35d7ee;
+  --accent-tertiary: #818cf8;
+  --accent-violet: #a78bfa;
+
+  --accent-soft: rgba(56, 130, 246, 0.15);
+  --accent-glow: rgba(56, 130, 246, 0.23);
+  --focus-ring: rgba(90, 155, 255, 0.3);
+
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.14);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.28);
+
+  background: var(--background);
   color: var(--foreground);
 }
 
 html.dark body {
-  background-color: var(--background);
+  background:
+    radial-gradient(
+      ellipse at 5% 0%,
+      rgba(56, 130, 246, 0.16),
+      transparent 38rem
+    ),
+    radial-gradient(
+      ellipse at 100% 8%,
+      rgba(0, 184, 217, 0.085),
+      transparent 34rem
+    ),
+    var(--background);
   color: var(--foreground);
 }
 
-/* ---------------------------------------------------------
-   SUPERFICIES
-   --------------------------------------------------------- */
+/* =========================================================
+   COMPATIBILIDAD CON TAILWIND EXISTENTE
+   Se conservan las clases usadas por las pantallas actuales.
+   ========================================================= */
 
 html.dark .bg-white {
   background-color: var(--surface) !important;
@@ -107,44 +205,47 @@ html.dark .bg-slate-100 {
 
 html.dark .bg-gray-200,
 html.dark .bg-slate-200 {
-  background-color: #334155 !important;
+  background-color: #203653 !important;
 }
 
-/* ---------------------------------------------------------
-   TEXTOS
-   --------------------------------------------------------- */
+html.dark .bg-gray-300,
+html.dark .bg-slate-300 {
+  background-color: #2b4262 !important;
+}
+
+/* Textos claros en modo oscuro */
 
 html.dark .text-gray-950,
 html.dark .text-gray-900,
 html.dark .text-gray-800,
 html.dark .text-gray-700,
+html.dark .text-slate-950,
 html.dark .text-slate-900,
 html.dark .text-slate-800,
 html.dark .text-slate-700 {
-  color: #f1f5f9 !important;
+  color: var(--text-primary) !important;
 }
 
 html.dark .text-gray-600,
 html.dark .text-gray-500,
 html.dark .text-slate-600,
 html.dark .text-slate-500 {
-  color: #cbd5e1 !important;
+  color: var(--text-secondary) !important;
 }
 
 html.dark .text-gray-400,
 html.dark .text-slate-400 {
-  color: #94a3b8 !important;
+  color: var(--text-muted) !important;
 }
 
-/* ---------------------------------------------------------
-   BORDES Y DIVISORES
-   --------------------------------------------------------- */
+/* Bordes */
 
 html.dark .border-gray-100,
 html.dark .border-gray-200,
 html.dark .border-gray-300,
 html.dark .border-slate-100,
-html.dark .border-slate-200 {
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
   border-color: var(--border) !important;
 }
 
@@ -152,9 +253,31 @@ html.dark hr {
   border-color: var(--border);
 }
 
-/* ---------------------------------------------------------
+/* Hover */
+
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-slate-50:hover {
+  background-color: var(--surface-secondary) !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover {
+  background-color: #203653 !important;
+}
+
+html.dark .hover\:bg-white:hover {
+  background-color: var(--surface-elevated) !important;
+}
+
+/* =========================================================
    CAMPOS DE FORMULARIO
-   --------------------------------------------------------- */
+   ========================================================= */
+
+input,
+select,
+textarea {
+  accent-color: var(--accent);
+}
 
 html.dark input,
 html.dark select,
@@ -167,58 +290,63 @@ html.dark textarea {
 html.dark input::placeholder,
 html.dark textarea::placeholder {
   color: var(--text-muted);
+  opacity: 1;
 }
 
 html.dark input:disabled,
 html.dark select:disabled,
 html.dark textarea:disabled {
-  background-color: #0f172a;
-  color: #94a3b8;
+  background-color: #0a1528;
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 html.dark option {
-  background-color: #111827;
-  color: #f8fafc;
+  background-color: var(--surface);
+  color: var(--text-primary);
 }
 
-/* ---------------------------------------------------------
-   TABLAS
-   --------------------------------------------------------- */
+html.dark input[type="checkbox"],
+html.dark input[type="radio"] {
+  background-color: var(--input-background);
+}
+
+html.dark input[type="checkbox"]:checked,
+html.dark input[type="radio"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Foco accesible */
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* =========================================================
+   TABLAS, DIÁLOGOS Y MENÚS
+   ========================================================= */
 
 html.dark table {
   color: var(--foreground);
 }
 
-html.dark thead {
-  border-color: var(--border);
-}
-
+html.dark thead,
 html.dark tbody tr {
   border-color: var(--border);
 }
-
-/* ---------------------------------------------------------
-   EFECTOS HOVER
-   --------------------------------------------------------- */
-
-html.dark .hover\:bg-gray-50:hover,
-html.dark .hover\:bg-slate-50:hover {
-  background-color: #1e293b !important;
-}
-
-html.dark .hover\:bg-gray-100:hover,
-html.dark .hover\:bg-slate-100:hover {
-  background-color: #334155 !important;
-}
-
-html.dark .hover\:bg-white:hover {
-  background-color: #1e293b !important;
-}
-
-/* ---------------------------------------------------------
-   ELEMENTOS NATIVOS
-   --------------------------------------------------------- */
 
 html.dark dialog,
 html.dark [role="dialog"],
@@ -226,54 +354,116 @@ html.dark [role="menu"] {
   color: var(--foreground);
 }
 
-/* ---------------------------------------------------------
-   TRANSICIONES
-   --------------------------------------------------------- */
+/* =========================================================
+   DETALLES VISUALES STIAN
+   ========================================================= */
 
-html {
-  min-height: 100%;
+/* Clases opcionales para nuevos componentes. */
+.stian-gradient {
+  background: linear-gradient(
+    115deg,
+    #3882f6 0%,
+    #00b8d9 52%,
+    #6366f1 100%
+  );
+}
+
+.stian-gradient-text {
+  background: linear-gradient(
+    115deg,
+    #3882f6 0%,
+    #00aeca 52%,
+    #885cff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.stian-surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.stian-focus {
+  outline: none;
   transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
 
-body {
-  min-height: 100%;
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+.stian-focus:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
-body,
-button,
+.stian-glow {
+  box-shadow: 0 0 28px var(--accent-glow);
+}
+
+/* =========================================================
+   TRANSICIONES
+   ========================================================= */
+
+button:not(:disabled),
+a,
 input,
 select,
-textarea,
-section,
-aside,
-header,
-footer,
-main,
-article,
-nav {
+textarea {
   transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
 }
 
+button:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+/* =========================================================
+   BARRA DE DESPLAZAMIENTO
+   ========================================================= */
+
+html.dark * {
+  scrollbar-color: #405777 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a9bad0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #405777;
+  background-clip: padding-box;
+}
+
+/* =========================================================
+   ACCESIBILIDAD
+   ========================================================= */
+
 @media (prefers-reduced-motion: reduce) {
-  html,
-  body,
-  button,
-  input,
-  select,
-  textarea,
-  section,
-  aside,
-  header,
-  footer,
-  main,
-  article,
-  nav {
+  html {
+    scroll-behavior: auto;
     transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
