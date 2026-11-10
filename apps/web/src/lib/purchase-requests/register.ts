@@ -74,7 +74,7 @@ export function createPurchaseRequest(
       (total, item) => total + item.quantity * item.estimatedUnitCost,
       0,
     ),
-    requestedBy: params.requestedBy.trim() || "Usuario VEXIA",
+    requestedBy: params.requestedBy.trim() || "Usuario STIAN",
     createdAt: now,
     updatedAt: now,
   };
@@ -106,7 +106,7 @@ export function reviewPurchaseRequest(
   const updated: PurchaseRequest = {
     ...request,
     status,
-    reviewedBy: reviewedBy.trim() || "Usuario VEXIA",
+    reviewedBy: reviewedBy.trim() || "Usuario STIAN",
     reviewNotes: reviewNotes.trim() || undefined,
     updatedAt: new Date().toISOString(),
   };

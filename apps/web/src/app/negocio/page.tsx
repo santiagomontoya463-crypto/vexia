@@ -134,7 +134,7 @@ export default function BusinessPage() {
                   type="text"
                   name="name"
                   defaultValue={business?.name ?? "Mi negocio"}
-                  placeholder="Ej. VEXIA Studio"
+                  placeholder="Ej. STIAN Studio"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
               </div>

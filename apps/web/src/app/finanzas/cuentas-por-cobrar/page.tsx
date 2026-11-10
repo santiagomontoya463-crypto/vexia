@@ -362,7 +362,7 @@ export default function CuentasPorCobrarPage() {
             </Link>
 
             <p className="mt-3 text-sm font-medium text-sky-600 dark:text-sky-400">
-              VEXIA · Finanzas
+              STIAN · Finanzas
             </p>
 
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -429,7 +429,7 @@ export default function CuentasPorCobrarPage() {
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Cada registro corresponde a una operación
-              existente en VEXIA.
+              existente en STIAN.
             </p>
           </div>
 

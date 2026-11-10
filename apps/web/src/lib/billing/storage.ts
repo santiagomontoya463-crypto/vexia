@@ -4,9 +4,9 @@ import type {
   BillingSettings,
 } from "./types";
 
-const DOCUMENTS_KEY = "vexia:billing:documents";
-const SERIES_KEY = "vexia:billing:series";
-const SETTINGS_KEY = "vexia:billing:settings";
+const DOCUMENTS_KEY = "stian:billing:documents";
+const SERIES_KEY = "stian:billing:series";
+const SETTINGS_KEY = "stian:billing:settings";
 
 function loadList<T>(key: string): T[] {
   if (typeof window === "undefined") return [];

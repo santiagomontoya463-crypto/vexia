@@ -16,7 +16,7 @@ type Service = {
   updatedAt: string;
 };
 
-const SERVICES_KEY = "vexia:services";
+const SERVICES_KEY = "stian:services";
 
 const defaultServices: Service[] = [
   {

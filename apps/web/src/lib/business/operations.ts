@@ -19,7 +19,7 @@ export interface BusinessOperations {
   updatedAt: string;
 }
 
-const KEY = "vexia:business-operations";
+const KEY = "stian:business-operations";
 
 export function getBusinessOperations(
   businessId: string

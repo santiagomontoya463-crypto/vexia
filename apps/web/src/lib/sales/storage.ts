@@ -1,6 +1,6 @@
 import type { Sale } from "./types";
 
-const SALES_KEY = "vexia:sales";
+const SALES_KEY = "stian:sales";
 
 export function loadSales(): Sale[] {
   if (typeof window === "undefined") return [];

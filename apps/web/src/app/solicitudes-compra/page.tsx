@@ -19,7 +19,7 @@ import { loadSuppliers } from "@/lib/suppliers/storage";
 import type { Supplier } from "@/lib/suppliers/types";
 
 const BUSINESS_ID = "current-business";
-const USER = "Usuario VEXIA";
+const USER = "Usuario STIAN";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -371,7 +371,7 @@ export default function SolicitudesCompraPage() {
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-sky-600 dark:text-sky-400">
-              VEXIA · Abastecimiento
+              STIAN · Abastecimiento
             </p>
             <h1 className="mt-1 text-2xl font-bold">Solicitudes de compra</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">

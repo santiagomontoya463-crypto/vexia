@@ -1,7 +1,7 @@
 import type { FinancialMovement } from "./types";
 
 const FINANCIAL_MOVEMENTS_KEY =
-  "vexia:financial-movements";
+  "stian:financial-movements";
 
 export function loadFinancialMovements(): FinancialMovement[] {
   if (typeof window === "undefined") {

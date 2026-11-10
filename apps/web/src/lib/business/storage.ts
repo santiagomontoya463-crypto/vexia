@@ -1,8 +1,8 @@
 import type { Business, BusinessSettings } from "./types";
 
-const BUSINESSES_KEY = "vexia:businesses";
-const ACTIVE_BUSINESS_KEY = "vexia:active-business";
-const SETTINGS_KEY = "vexia:business-settings";
+const BUSINESSES_KEY = "stian:businesses";
+const ACTIVE_BUSINESS_KEY = "stian:active-business";
+const SETTINGS_KEY = "stian:business-settings";
 
 function readBusinesses(): Business[] {
   if (typeof window === "undefined") return [];

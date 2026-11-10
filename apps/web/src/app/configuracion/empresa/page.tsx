@@ -271,13 +271,13 @@ export default function EmpresaConfigPage() {
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300">
-                VEXIA · Configuración inteligente
+                STIAN · Configuración inteligente
               </div>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Configuremos cómo funciona tu empresa
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400 sm:text-base">
-                VEXIA se adapta a tu negocio. Activa solamente las capacidades
+                STIAN se adapta a tu negocio. Activa solamente las capacidades
                 que necesitas y podrás ampliarlas cuando tu empresa crezca.
               </p>
             </div>
@@ -299,7 +299,7 @@ export default function EmpresaConfigPage() {
               </p>
               <h2 className="mt-1 text-xl font-bold">¿Qué tipo de empresa tienes?</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Esto ayuda a VEXIA a proponerte una configuración inicial.
+                Esto ayuda a STIAN a proponerte una configuración inicial.
               </p>
             </div>
 
@@ -373,7 +373,7 @@ export default function EmpresaConfigPage() {
               </p>
               <h2 className="mt-1 text-xl font-bold">Tamaño de la empresa</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                VEXIA puede crecer contigo. Esta información sirve para ajustar
+                STIAN puede crecer contigo. Esta información sirve para ajustar
                 recomendaciones y experiencia.
               </p>
             </div>
@@ -458,7 +458,7 @@ export default function EmpresaConfigPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                   Paso 04
                 </p>
-                <h2 className="mt-1 text-xl font-bold">Módulos de VEXIA</h2>
+                <h2 className="mt-1 text-xl font-bold">Módulos de STIAN</h2>
                 <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
                   Activa lo que tu empresa necesita. Podrás añadir más módulos
                   conforme el negocio crezca.
@@ -527,7 +527,7 @@ export default function EmpresaConfigPage() {
                   Vista previa
                 </span>
                 <h2 className="mt-1 text-xl font-bold">
-                  Tu VEXIA se adaptará a esta configuración
+                  Tu STIAN se adaptará a esta configuración
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
                   Esta configuración será la base para que los demás módulos

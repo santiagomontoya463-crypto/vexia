@@ -12,8 +12,6 @@ type Tab =
   | "clientes"
   | "seguridad";
 
-type Theme = "light" | "dark" | "system";
-
 type Role = {
   id: string;
   name: string;
@@ -103,29 +101,6 @@ const initialUsers: User[] = [
   },
 ];
 
-function applyTheme(theme: Theme) {
-  if (typeof window === "undefined") return;
-
-  const root = document.documentElement;
-
-  root.setAttribute("data-theme", theme);
-
-  const systemDark = window.matchMedia(
-    "(prefers-color-scheme: dark)"
-  ).matches;
-
-  const shouldUseDark =
-    theme === "dark" ||
-    (theme === "system" && systemDark);
-
-  root.classList.toggle("dark", shouldUseDark);
-
-  localStorage.setItem(
-    "vexia-theme",
-    theme
-  );
-}
-
 export default function ConfigurationPage() {
   const [activeTab, setActiveTab] =
     useState<Tab>("general");
@@ -172,46 +147,30 @@ export default function ConfigurationPage() {
     useState("es");
 
   useEffect(() => {
-    const storedTheme =
-      localStorage.getItem(
-        "vexia-theme"
-      ) as Theme | null;
-
     const savedBusinessName =
       localStorage.getItem(
-        "vexia-business-name"
+        "stian-business-name"
       );
 
     const savedTimezone =
       localStorage.getItem(
-        "vexia-timezone"
+        "stian-timezone"
       );
 
     const savedCurrency =
       localStorage.getItem(
-        "vexia-currency"
+        "stian-currency"
       );
 
     const savedTimeFormat =
       localStorage.getItem(
-        "vexia-time-format"
+        "stian-time-format"
       );
 
     const savedLanguage =
       localStorage.getItem(
-        "vexia-language"
+        "stian-language"
       );
-
-    if (
-      storedTheme === "light" ||
-      storedTheme === "dark" ||
-      storedTheme === "system"
-    ) {
-      setTheme(storedTheme);
-      applyTheme(storedTheme);
-    } else {
-      applyTheme("system");
-    }
 
     if (savedBusinessName) {
       setBusinessName(savedBusinessName);
@@ -232,34 +191,6 @@ export default function ConfigurationPage() {
     if (savedLanguage) {
       setLanguage(savedLanguage);
     }
-
-    const mediaQuery =
-      window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      );
-
-    const handleSystemThemeChange = () => {
-      const currentTheme =
-        localStorage.getItem(
-          "vexia-theme"
-        ) as Theme | null;
-
-      if (currentTheme === "system") {
-        applyTheme("system");
-      }
-    };
-
-    mediaQuery.addEventListener(
-      "change",
-      handleSystemThemeChange
-    );
-
-    return () => {
-      mediaQuery.removeEventListener(
-        "change",
-        handleSystemThemeChange
-      );
-    };
   }, []);
 
   const tabs = [
@@ -300,45 +231,31 @@ export default function ConfigurationPage() {
       (role) => role.id === selectedRole
     ) || roles[0];
 
-  const handleThemeChange = (
-    newTheme: Theme
-  ) => {
-    setTheme(newTheme);
-    applyTheme(newTheme);
-  };
-
   const saveChanges = () => {
     localStorage.setItem(
-      "vexia-theme",
-      theme
-    );
-
-    localStorage.setItem(
-      "vexia-business-name",
+      "stian-business-name",
       businessName
     );
 
     localStorage.setItem(
-      "vexia-timezone",
+      "stian-timezone",
       timezone
     );
 
     localStorage.setItem(
-      "vexia-currency",
+      "stian-currency",
       currency
     );
 
     localStorage.setItem(
-      "vexia-time-format",
+      "stian-time-format",
       timeFormat
     );
 
     localStorage.setItem(
-      "vexia-language",
+      "stian-language",
       language
     );
-
-    applyTheme(theme);
 
     setSaved(true);
 
@@ -451,7 +368,7 @@ export default function ConfigurationPage() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm text-slate-500">
-            Personaliza el funcionamiento de VEXIA,
+            Personaliza el funcionamiento de STIAN,
             administra tu equipo y define cómo
             interactúan tus clientes con el negocio.
           </p>
@@ -566,7 +483,7 @@ export default function ConfigurationPage() {
 
                       <p className="mt-1 text-xs text-slate-400">
                         Nombre utilizado para identificar
-                        tu negocio dentro de VEXIA.
+                        tu negocio dentro de STIAN.
                       </p>
 
                     </div>
@@ -672,7 +589,7 @@ export default function ConfigurationPage() {
                     <div className="mb-4">
 
                       <h3 className="font-semibold">
-                        Apariencia de VEXIA
+                        Apariencia de STIAN
                       </h3>
 
                       <p className="mt-1 text-sm text-slate-500">
@@ -684,12 +601,12 @@ export default function ConfigurationPage() {
                     </div>
 
                     <div className="flex w-full justify-start">
-                      <div className="vexia-theme-selector">
+                      <div className="stian-theme-selector">
 
                         <button
                           type="button"
                           onClick={() => setTheme("light")}
-                          className={`vexia-theme-option ${
+                          className={`stian-theme-option ${
                             theme === "light" ? "active" : ""
                           }`}
                         >
@@ -699,7 +616,7 @@ export default function ConfigurationPage() {
                         <button
                           type="button"
                           onClick={() => setTheme("dark")}
-                          className={`vexia-theme-option ${
+                          className={`stian-theme-option ${
                             theme === "dark" ? "active" : ""
                           }`}
                         >
@@ -709,7 +626,7 @@ export default function ConfigurationPage() {
                         <button
                           type="button"
                           onClick={() => setTheme("system")}
-                          className={`vexia-theme-option ${
+                          className={`stian-theme-option ${
                             theme === "system" ? "active" : ""
                           }`}
                         >
@@ -1370,7 +1287,7 @@ export default function ConfigurationPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Protege el acceso a tu cuenta VEXIA.
+                    Protege el acceso a tu cuenta STIAN.
                   </p>
 
                 </div>

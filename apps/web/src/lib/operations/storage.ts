@@ -1,7 +1,7 @@
 import type { Operation, Payment } from "./types";
 
-const OPERATIONS_KEY = "vexia:operations";
-const PAYMENTS_KEY = "vexia:payments";
+const OPERATIONS_KEY = "stian:operations";
+const PAYMENTS_KEY = "stian:payments";
 
 export function loadOperations(): Operation[] {
   if (typeof window === "undefined") {

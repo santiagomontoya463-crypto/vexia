@@ -174,7 +174,7 @@ export default function FacturacionPage() {
 
   useEffect(() => {
     const savedBusiness =
-      window.localStorage.getItem("vexia:active-business");
+      window.localStorage.getItem("stian:active-business");
 
     if (savedBusiness) setBusinessId(savedBusiness);
   }, []);
@@ -277,7 +277,7 @@ export default function FacturacionPage() {
     const qty = Number(quantity);
 
     if (!businessId.trim()) {
-      setError("Configura primero el negocio activo en VEXIA.");
+      setError("Configura primero el negocio activo en STIAN.");
       return;
     }
 
@@ -434,7 +434,7 @@ export default function FacturacionPage() {
       <body>
         <div class="top">
           <div>
-            <div class="brand">VEXIA</div>
+            <div class="brand">STIAN</div>
             <h1>${escapeHtml(issuer?.name || "Emisor sin identificar")}</h1>
             <p>${escapeHtml(partyDocument(issuer))}</p>
             <p>${escapeHtml(issuer?.address || "")}</p>
@@ -493,10 +493,10 @@ export default function FacturacionPage() {
         <div class="notice">
           <strong>${escapeHtml(doc.status === "draft" ? "BORRADOR — NO EMITIDO" : statusLabel(doc.status).toUpperCase())}</strong>
           <p>Estado electrónico: ${escapeHtml(electronicStatusLabel(doc.electronicStatus))}.</p>
-          <p>Este documento se genera en VEXIA. Su impresión no demuestra validación de factura electrónica ante la DIAN.</p>
+          <p>Este documento se genera en STIAN. Su impresión no demuestra validación de factura electrónica ante la DIAN.</p>
         </div>
 
-        <div class="footer">Generado desde VEXIA · Gestiona. Conecta. Crece.</div>
+        <div class="footer">Generado desde STIAN · Gestiona. Conecta. Crece.</div>
         <div class="no-print" style="margin-top:24px;text-align:center">
           <button onclick="window.print()" style="padding:12px 18px;background:#4f46e5;color:white;border:0;border-radius:8px;font-weight:bold;cursor:pointer">Imprimir / Guardar PDF</button>
         </div>
@@ -517,7 +517,7 @@ export default function FacturacionPage() {
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <p className="text-sm font-medium text-indigo-600">
-            VEXIA · Gestión empresarial
+            STIAN · Gestión empresarial
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900">
             Facturación
@@ -541,7 +541,7 @@ export default function FacturacionPage() {
 
       {!businessId && (
         <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-          No se encontró un negocio activo. Selecciona un negocio en VEXIA
+          No se encontró un negocio activo. Selecciona un negocio en STIAN
           para consultar y guardar su facturación. No se mostrarán documentos
           de otros negocios.
         </section>
@@ -875,7 +875,7 @@ export default function FacturacionPage() {
                   <div className="flex flex-col justify-between gap-5 border-b-2 border-gray-900 pb-6 sm:flex-row">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
-                        VEXIA
+                        STIAN
                       </p>
                       <h3 className="mt-2 text-2xl font-bold">
                         {selectedDocument.issuerSnapshot?.name ||
@@ -1064,13 +1064,13 @@ export default function FacturacionPage() {
                     <p className="mt-2 leading-6">
                       Estado electrónico:{" "}
                       {electronicStatusLabel(selectedDocument.electronicStatus)}.
-                      Esta vista previa se genera en VEXIA y no acredita por sí
+                      Esta vista previa se genera en STIAN y no acredita por sí
                       sola validación de factura electrónica ante la DIAN.
                     </p>
                   </section>
 
                   <footer className="mt-8 border-t border-gray-200 pt-4 text-center text-xs text-gray-500">
-                    Generado desde VEXIA · Gestiona. Conecta. Crece.
+                    Generado desde STIAN · Gestiona. Conecta. Crece.
                   </footer>
                 </article>
               ) : (

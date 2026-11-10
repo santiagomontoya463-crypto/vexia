@@ -3,8 +3,8 @@ import type {
   PurchasePayment,
 } from "./types";
 
-const PURCHASES_KEY = "vexia:purchases";
-const PURCHASE_PAYMENTS_KEY = "vexia:purchase-payments";
+const PURCHASES_KEY = "stian:purchases";
+const PURCHASE_PAYMENTS_KEY = "stian:purchase-payments";
 
 export function loadPurchases(): Purchase[] {
   if (typeof window === "undefined") {

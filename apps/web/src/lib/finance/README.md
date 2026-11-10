@@ -1,6 +1,6 @@
-# VEXIA Financial Core
+# STIAN Financial Core
 
-Núcleo financiero compartido de VEXIA.
+Núcleo financiero compartido de STIAN.
 
 ## Flujo principal
 

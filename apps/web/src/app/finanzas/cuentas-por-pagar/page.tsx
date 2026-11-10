@@ -136,7 +136,7 @@ export default function CuentasPorPagarPage() {
     if (!confirmed) return;
 
     try {
-      const result = receivePurchase(BUSINESS_ID, purchase.id, "Usuario VEXIA");
+      const result = receivePurchase(BUSINESS_ID, purchase.id, "Usuario STIAN");
       refreshData();
       setSelectedPurchase(result.purchase);
       setMessage(

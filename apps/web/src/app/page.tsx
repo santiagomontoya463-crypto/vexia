@@ -153,7 +153,7 @@ export default function DashboardPage() {
             <div className="grid min-w-52 grid-cols-2 gap-3 lg:w-64">
               <div className="rounded-2xl border border-white/15 bg-white/[0.09] p-4 backdrop-blur-xl">
                 <p className="text-xs text-indigo-100">Plataforma</p>
-                <p className="mt-3 text-lg font-bold">VEXIA</p>
+                <p className="mt-3 text-lg font-bold">STIAN</p>
                 <p className="mt-1 text-[11px] text-indigo-100/80">
                   Gestión integral
                 </p>
@@ -296,7 +296,7 @@ export default function DashboardPage() {
           </section>
         </div>
         <footer className="mt-8 flex flex-col justify-between gap-2 border-t border-slate-200/80 py-5 text-xs text-slate-500 dark:border-white/[0.08] dark:text-slate-500 sm:flex-row sm:items-center">
-          <p>VEXIA · Gestiona. Conecta. Crece.</p>
+          <p>STIAN · Gestiona. Conecta. Crece.</p>
           <p>Panel de demostración · Los datos aún no son reales</p>
         </footer>
       </div>

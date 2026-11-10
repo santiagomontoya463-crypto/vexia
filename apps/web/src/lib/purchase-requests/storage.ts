@@ -1,6 +1,6 @@
 import type { PurchaseRequest } from "./types";
 
-const STORAGE_KEY = "vexia:purchase-requests";
+const STORAGE_KEY = "stian:purchase-requests";
 
 export function loadPurchaseRequests(): PurchaseRequest[] {
   if (typeof window === "undefined") return [];

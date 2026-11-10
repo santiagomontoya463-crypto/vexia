@@ -1,6 +1,6 @@
 import type { Supplier } from "./types";
 
-const SUPPLIERS_KEY = "vexia:suppliers";
+const SUPPLIERS_KEY = "stian:suppliers";
 
 export function loadSuppliers(): Supplier[] {
   if (typeof window === "undefined") return [];

@@ -1,7 +1,7 @@
 import type { InventoryMovement, Product } from "./types";
 
-const PRODUCTS_KEY = "vexia:products";
-const MOVEMENTS_KEY = "vexia:inventory-movements";
+const PRODUCTS_KEY = "stian:products";
+const MOVEMENTS_KEY = "stian:inventory-movements";
 
 export function loadProducts(): Product[] {
   if (typeof window === "undefined") return [];

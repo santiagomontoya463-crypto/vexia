@@ -1,4 +1,4 @@
-const SERVICES_KEY = "vexia:services";
+const SERVICES_KEY = "stian:services";
 
 export function loadServices(): unknown[] {
   if (typeof window === "undefined") return [];

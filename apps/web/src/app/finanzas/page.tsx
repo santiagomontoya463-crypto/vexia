@@ -450,7 +450,7 @@ function LineChart({
     return (
       <ChartEmptyState
         title="Sin información para graficar"
-        description="Cuando VEXIA registre movimientos financieros dentro del período seleccionado, aquí aparecerá su evolución."
+        description="Cuando STIAN registre movimientos financieros dentro del período seleccionado, aquí aparecerá su evolución."
       />
     );
   }
@@ -1138,7 +1138,7 @@ export default function FinanzasPage() {
 
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
               Consulta y controla los movimientos financieros
-              generados por las operaciones de VEXIA.
+              generados por las operaciones de STIAN.
             </p>
           </div>
 
@@ -1398,7 +1398,7 @@ export default function FinanzasPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Registro central de los movimientos económicos de VEXIA.
+                Registro central de los movimientos económicos de STIAN.
               </p>
             </div>
 
@@ -1486,7 +1486,7 @@ export default function FinanzasPage() {
                 Los ingresos, egresos, pagos,
                 devoluciones y demás movimientos
                 aparecerán aquí cuando sean generados
-                por los módulos correspondientes de VEXIA.
+                por los módulos correspondientes de STIAN.
               </p>
             </div>
           ) : (

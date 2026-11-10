@@ -125,7 +125,7 @@ export default function ProductosPage() {
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-sky-600 dark:text-sky-400">
-              VEXIA · Inventario
+              STIAN · Inventario
             </p>
 
             <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">

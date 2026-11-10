@@ -467,3 +467,36 @@ html.dark ::-webkit-scrollbar-thumb {
     transition-duration: 0.01ms !important;
   }
 }
+/* Selector de tema (Configuración): Claro / Oscuro / Automático. */
+.stian-theme-selector {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.stian-theme-option {
+  padding: 0.5rem 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.stian-theme-option:hover {
+  background: rgba(56, 130, 246, 0.1);
+}
+
+.stian-theme-option.active {
+  color: #fff;
+  background: linear-gradient(115deg, #3882f6 0%, #00b8d9 52%, #6366f1 100%);
+}
