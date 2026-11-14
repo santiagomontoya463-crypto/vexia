@@ -84,22 +84,7 @@ const initialRoles: Role[] = [
   },
 ];
 
-const initialUsers: User[] = [
-  {
-    id: 1,
-    name: "Propietario principal",
-    email: "propietario@negocio.com",
-    role: "Propietario",
-    status: "Activo",
-  },
-  {
-    id: 2,
-    name: "Usuario administrativo",
-    email: "admin@negocio.com",
-    role: "Administrador",
-    status: "Activo",
-  },
-];
+const initialUsers: User[] = [];
 
 export default function ConfigurationPage() {
   const [activeTab, setActiveTab] =

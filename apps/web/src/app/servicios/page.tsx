@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { lower, useIndustry } from "../../lib/industry";
 
 type ServiceStatus = "Activo" | "Inactivo";
 
@@ -18,41 +19,7 @@ type Service = {
 
 const SERVICES_KEY = "stian:services";
 
-const defaultServices: Service[] = [
-  {
-    id: "service-1",
-    name: "Corte clásico",
-    category: "Barbería",
-    description: "Corte tradicional personalizado.",
-    duration: "30 min",
-    price: 25000,
-    status: "Activo",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "service-2",
-    name: "Corte + barba",
-    category: "Barbería",
-    description: "Corte de cabello y arreglo de barba.",
-    duration: "45 min",
-    price: 40000,
-    status: "Activo",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "service-3",
-    name: "Diseño de uñas",
-    category: "Belleza",
-    description: "Servicio de diseño y cuidado de uñas.",
-    duration: "60 min",
-    price: 50000,
-    status: "Activo",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+const defaultServices: Service[] = [];
 
 function loadServices(): Service[] {
   if (typeof window === "undefined") {
@@ -102,6 +69,7 @@ function formatCurrency(value: number) {
 }
 
 export default function ServicesPage() {
+  const industry = useIndustry();
   const [services, setServices] = useState<Service[]>(defaultServices);
 
   const [search, setSearch] = useState("");
@@ -328,15 +296,15 @@ export default function ServicesPage() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              Gestión de servicios
+              Gestión de {lower(industry.services)}
             </p>
 
             <h1 className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">
-              Servicios
+              {industry.services}
             </h1>
 
             <p className="mt-2 text-slate-500 dark:text-slate-400">
-              Administra los servicios que ofrece tu empresa.
+              Administra {lower(industry.services)} que ofrece tu empresa.
             </p>
           </div>
 
@@ -345,14 +313,50 @@ export default function ServicesPage() {
             onClick={openNewService}
             className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            + Nuevo servicio
+            + {industry.newService}
           </button>
         </div>
+
+        <datalist id="stian-categorias">
+          {industry.serviceCategories.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+
+        {services.length === 0 && industry.suggestedServices.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+            <p className="font-semibold text-slate-900 dark:text-white">
+              Empieza con una sugerencia para {industry.type.toLowerCase()}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Elige una para abrir el formulario con los datos listos; solo te
+              falta ponerle el precio.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {industry.suggestedServices.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  onClick={() => {
+                    openNewService();
+                    setName(item.name);
+                    setCategory(item.category);
+                    setDuration(item.duration);
+                  }}
+                  className="rounded-full border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 dark:border-white/15 dark:bg-transparent dark:text-violet-200"
+                >
+                  + {item.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Servicios
+              {industry.services}
             </p>
             <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
               {services.length}
@@ -530,7 +534,7 @@ export default function ServicesPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  Nuevo servicio
+                  {industry.newService}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Configura la información completa del servicio.
@@ -558,6 +562,7 @@ export default function ServicesPage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="Categoría"
+                list="stian-categorias"
                 className="rounded-xl border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
 
@@ -646,6 +651,7 @@ export default function ServicesPage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="Categoría"
+                list="stian-categorias"
                 className="rounded-xl border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
 

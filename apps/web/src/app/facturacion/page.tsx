@@ -2,15 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import Link from "next/link";
 import {
   createBillingDraft,
+  createCorrectionNote,
   getBillingDocuments,
+  issueBillingDocument,
 } from "../../lib/billing";
 import type {
   BillingDocument,
+  BillingDocumentItem,
   BillingDocumentType,
   BillingPartySnapshot,
 } from "../../lib/billing";
+import { getActiveBusiness, getActiveBusinessId } from "../../lib/business";
 
 const DOCUMENT_TYPES: {
   value: BillingDocumentType | "all";
@@ -151,6 +156,110 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#39;");
 }
 
+type FormItem = {
+  id: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  discount: string;
+  taxRate: string;
+};
+
+const CREATABLE_TYPES: { value: BillingDocumentType; label: string }[] = [
+  { value: "invoice", label: "Factura de venta (para clientes)" },
+  { value: "received_invoice", label: "Factura recibida (de proveedores)" },
+  { value: "receipt", label: "Recibo de caja / pago" },
+  { value: "other", label: "Otro documento (cuenta de cobro, etc.)" },
+];
+
+const TAX_RATES = [
+  { value: "0", label: "Sin IVA" },
+  { value: "5", label: "IVA 5%" },
+  { value: "19", label: "IVA 19%" },
+];
+
+const PARTY_DOCUMENT_TYPES = ["NIT", "CC", "CE", "Pasaporte", "Otro"];
+
+function newFormItem(): FormItem {
+  return {
+    id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    description: "",
+    quantity: "1",
+    unitPrice: "",
+    discount: "0",
+    taxRate: "0",
+  };
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function buildItems(rows: FormItem[]): {
+  items: BillingDocumentItem[];
+  valid: boolean;
+} {
+  const items: BillingDocumentItem[] = [];
+  let valid = rows.length > 0;
+  const stamp = Date.now();
+
+  rows.forEach((row, index) => {
+    const quantity = Number(row.quantity);
+    const unitPrice = Number(row.unitPrice);
+    const discount = Number(row.discount || 0);
+    const taxRate = Number(row.taxRate || 0);
+
+    if (
+      !row.description.trim() ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0 ||
+      !Number.isFinite(discount) ||
+      discount < 0 ||
+      !Number.isFinite(taxRate) ||
+      taxRate < 0
+    ) {
+      valid = false;
+      return;
+    }
+
+    const gross = round2(quantity * unitPrice);
+
+    if (discount > gross) {
+      valid = false;
+      return;
+    }
+
+    const base = round2(gross - discount);
+    const taxAmount = round2((base * taxRate) / 100);
+
+    items.push({
+      id: `item-${stamp}-${index}`,
+      type: "other",
+      description: row.description.trim(),
+      quantity,
+      unitPrice,
+      discount,
+      taxRate,
+      taxAmount,
+      total: round2(base + taxAmount),
+    });
+  });
+
+  return { items, valid };
+}
+
+function summarize(items: BillingDocumentItem[]) {
+  const subtotal = round2(
+    items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+  );
+  const discount = round2(items.reduce((sum, item) => sum + item.discount, 0));
+  const tax = round2(items.reduce((sum, item) => sum + item.taxAmount, 0));
+
+  return { subtotal, discount, tax, total: round2(subtotal - discount + tax) };
+}
+
 export default function FacturacionPage() {
   const [businessId, setBusinessId] = useState("");
   const [documents, setDocuments] = useState<BillingDocument[]>([]);
@@ -160,10 +269,18 @@ export default function FacturacionPage() {
   const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
-  const [description, setDescription] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const [docType, setDocType] = useState<BillingDocumentType>("invoice");
+  const [partyName, setPartyName] = useState("");
+  const [partyDocType, setPartyDocType] = useState("NIT");
+  const [partyDocNumber, setPartyDocNumber] = useState("");
+  const [partyEmail, setPartyEmail] = useState("");
+  const [partyPhone, setPartyPhone] = useState("");
+  const [partyAddress, setPartyAddress] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [formItems, setFormItems] = useState<FormItem[]>(() => [
+    newFormItem(),
+  ]);
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -173,8 +290,7 @@ export default function FacturacionPage() {
     useState<DocumentView>("detail");
 
   useEffect(() => {
-    const savedBusiness =
-      window.localStorage.getItem("stian:active-business");
+    const savedBusiness = getActiveBusinessId();
 
     if (savedBusiness) setBusinessId(savedBusiness);
   }, []);
@@ -251,12 +367,7 @@ export default function FacturacionPage() {
     (doc) => doc.status === "draft",
   ).length;
 
-  const estimatedTotal =
-    Math.round(
-      Math.max(0, Number(quantity) || 0) *
-        Math.max(0, Number(unitPrice) || 0) *
-        100,
-    ) / 100;
+  const formTotals = summarize(buildItems(formItems).items);
 
   function refreshDocuments() {
     if (!businessId.trim()) return;
@@ -269,74 +380,161 @@ export default function FacturacionPage() {
     setError("");
   }
 
+  function resetForm() {
+    setDocType("invoice");
+    setPartyName("");
+    setPartyDocType("NIT");
+    setPartyDocNumber("");
+    setPartyEmail("");
+    setPartyPhone("");
+    setPartyAddress("");
+    setDueDate("");
+    setNotes("");
+    setFormItems([newFormItem()]);
+  }
+
+  function updateItem(id: string, changes: Partial<FormItem>) {
+    setFormItems((current) =>
+      current.map((row) => (row.id === id ? { ...row, ...changes } : row)),
+    );
+  }
+
+  function removeItem(id: string) {
+    setFormItems((current) =>
+      current.length > 1 ? current.filter((row) => row.id !== id) : current,
+    );
+  }
+
   function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     clearMessages();
 
-    const price = Number(unitPrice);
-    const qty = Number(quantity);
-
     if (!businessId.trim()) {
-      setError("Configura primero el negocio activo en STIAN.");
+      setError(
+        "Primero registra tu negocio en la sección Negocio y guarda sus datos.",
+      );
       return;
     }
 
-    if (
-      !description.trim() ||
-      !Number.isFinite(price) ||
-      price < 0 ||
-      !Number.isFinite(qty) ||
-      qty <= 0
-    ) {
-      setError("Revisa la descripción, la cantidad y el precio.");
+    const isReceived = docType === "received_invoice";
+
+    if (!partyName.trim()) {
+      setError(
+        isReceived
+          ? "Escribe el nombre del proveedor."
+          : "Escribe el nombre del cliente.",
+      );
       return;
     }
 
-    const subtotal = Math.round(qty * price * 100) / 100;
+    const { items, valid } = buildItems(formItems);
+
+    if (!valid || items.length === 0) {
+      setError(
+        "Revisa los conceptos: cada uno necesita descripción, cantidad mayor que cero, precio válido y un descuento que no supere su valor.",
+      );
+      return;
+    }
+
+    const totals = summarize(items);
+    const business = getActiveBusiness();
+
+    const businessParty: BillingPartySnapshot = {
+      name: business?.name || "Mi negocio",
+      documentType: business?.documentNumber ? "NIT" : undefined,
+      documentNumber: business?.documentNumber || undefined,
+      email: business?.email || undefined,
+      phone: business?.phone || undefined,
+      address: business?.address || undefined,
+      countryCode: business?.countryCode || "CO",
+    };
+
+    const party: BillingPartySnapshot = {
+      name: partyName.trim(),
+      documentType: partyDocNumber.trim() ? partyDocType : undefined,
+      documentNumber: partyDocNumber.trim() || undefined,
+      email: partyEmail.trim() || undefined,
+      phone: partyPhone.trim() || undefined,
+      address: partyAddress.trim() || undefined,
+      countryCode: "CO",
+    };
 
     try {
       createBillingDraft({
         businessId,
-        type: "invoice",
-        customerSnapshot: {
-          name: customerName.trim() || "Cliente sin identificar",
-        },
-        items: [
-          {
-            id: `item-${Date.now()}`,
-            type: "other",
-            description: description.trim(),
-            quantity: qty,
-            unitPrice: price,
-            discount: 0,
-            taxRate: 0,
-            taxAmount: 0,
-            total: subtotal,
-          },
-        ],
-        subtotal,
-        discount: 0,
-        tax: 0,
-        total: subtotal,
-        currency: "COP",
+        type: docType,
+        issuerSnapshot: isReceived ? party : businessParty,
+        customerSnapshot: isReceived ? businessParty : party,
+        supplierSnapshot: isReceived ? party : undefined,
+        dueDate: dueDate || undefined,
+        items,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        tax: totals.tax,
+        total: totals.total,
+        currency: business?.currency || "COP",
         createdBy: "usuario-actual",
-        notes: "Borrador creado desde Facturación",
+        notes: notes.trim() || undefined,
       });
 
       refreshDocuments();
       setShowForm(false);
-      setDescription("");
-      setQuantity("1");
-      setUnitPrice("");
-      setCustomerName("");
+      resetForm();
       setMessage(
-        "Borrador creado correctamente. Aún no es una factura emitida.",
+        "Borrador guardado. Ábrelo desde la lista y presiona «Emitir documento» para asignarle su consecutivo.",
       );
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "No fue posible crear el borrador.",
+      );
+    }
+  }
+
+  function issueDocument(doc: BillingDocument) {
+    const confirmed = window.confirm(
+      "Al emitir el documento se le asigna un consecutivo y ya no podrá editarse. ¿Continuar?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      issueBillingDocument(businessId, doc.id);
+      refreshDocuments();
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "No fue posible emitir el documento.",
+      );
+    }
+  }
+
+  function createNote(
+    doc: BillingDocument,
+    type: "credit_note" | "debit_note",
+  ) {
+    const reason = window.prompt(
+      type === "credit_note"
+        ? "Motivo de la nota crédito (por ejemplo: devolución o anulación):"
+        : "Motivo de la nota débito (por ejemplo: ajuste de valor):",
+    );
+
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const note = createCorrectionNote(
+        businessId,
+        doc.id,
+        type,
+        "usuario-actual",
+        reason,
+      );
+
+      refreshDocuments();
+      setSelectedDocumentId(note.id);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "No fue posible crear la nota.",
       );
     }
   }
@@ -535,15 +733,18 @@ export default function FacturacionPage() {
           }}
           className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700"
         >
-          {showForm ? "Cerrar formulario" : "+ Nueva factura"}
+          {showForm ? "Cerrar formulario" : "+ Nuevo documento"}
         </button>
       </header>
 
       {!businessId && (
         <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-          No se encontró un negocio activo. Selecciona un negocio en STIAN
-          para consultar y guardar su facturación. No se mostrarán documentos
-          de otros negocios.
+          Para crear documentos primero debes registrar tu negocio (nombre,
+          NIT y datos de contacto), porque cada factura pertenece a un negocio.{" "}
+          <Link href="/negocio" className="font-bold underline">
+            Registrar mi negocio
+          </Link>
+          . Cuando lo guardes, vuelve a esta página.
         </section>
       )}
 
@@ -587,78 +788,254 @@ export default function FacturacionPage() {
       {showForm && (
         <section className={panelClass}>
           <h2 className="text-lg font-bold text-gray-900">
-            Crear borrador de factura
+            Nuevo documento
           </h2>
           <p className="mt-1 text-sm leading-6 text-gray-500">
-            El documento se guardará como borrador. No se emitirá ni generará
-            movimientos financieros.
+            Se guarda como borrador. Podrás revisarlo y emitirlo después; al
+            emitirlo recibe su consecutivo y ya no se puede editar.
           </p>
 
-          <form onSubmit={createDraft} className="mt-5 grid gap-4 md:grid-cols-2">
+          <form onSubmit={createDraft} className="mt-5 grid gap-5">
             <label className={labelClass}>
-              Cliente
-              <input
-                value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
-                placeholder="Nombre del cliente"
+              Tipo de documento
+              <select
+                value={docType}
+                onChange={(event) =>
+                  setDocType(event.target.value as BillingDocumentType)
+                }
                 className={inputClass}
-              />
+              >
+                {CREATABLE_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
-            <label className={labelClass}>
-              Concepto
-              <input
-                required
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Producto o servicio"
-                className={inputClass}
-              />
-            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClass}>
+                {docType === "received_invoice" ? "Proveedor" : "Cliente"}
+                <input
+                  value={partyName}
+                  onChange={(event) => setPartyName(event.target.value)}
+                  placeholder="Nombre o razón social"
+                  className={inputClass}
+                />
+              </label>
 
-            <label className={labelClass}>
-              Cantidad
-              <input
-                required
-                min="0.01"
-                step="any"
-                type="number"
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-                className={inputClass}
-              />
-            </label>
+              <div className="grid grid-cols-3 gap-3">
+                <label className={labelClass}>
+                  Tipo doc.
+                  <select
+                    value={partyDocType}
+                    onChange={(event) => setPartyDocType(event.target.value)}
+                    className={inputClass}
+                  >
+                    {PARTY_DOCUMENT_TYPES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label className={labelClass}>
-              Precio unitario (COP)
-              <input
-                required
-                min="0"
-                step="any"
-                type="number"
-                value={unitPrice}
-                onChange={(event) => setUnitPrice(event.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
-            </label>
+                <label className={`${labelClass} col-span-2`}>
+                  Número de documento
+                  <input
+                    value={partyDocNumber}
+                    onChange={(event) => setPartyDocNumber(event.target.value)}
+                    placeholder="NIT o cédula"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
 
-            <div className="rounded-xl bg-gray-50 p-4 md:col-span-2">
-              <span className="text-sm text-gray-500">Total estimado</span>
-              <p className="mt-1 text-2xl font-bold text-gray-900">
-                {money(estimatedTotal, "COP")}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-gray-500">
-                Esta versión inicial no calcula impuestos ni descuentos.
-                La creación de un borrador no equivale a emitir una factura.
-              </p>
+              <label className={labelClass}>
+                Correo
+                <input
+                  type="email"
+                  value={partyEmail}
+                  onChange={(event) => setPartyEmail(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+
+              <label className={labelClass}>
+                Teléfono
+                <input
+                  value={partyPhone}
+                  onChange={(event) => setPartyPhone(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+
+              <label className={`${labelClass} md:col-span-2`}>
+                Dirección
+                <input
+                  value={partyAddress}
+                  onChange={(event) => setPartyAddress(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+
+              <label className={labelClass}>
+                Fecha de vencimiento (opcional)
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
             </div>
 
-            <div className="flex flex-wrap gap-3 md:col-span-2">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Conceptos</h3>
+
+              <div className="mt-3 grid gap-3">
+                {formItems.map((row, index) => (
+                  <div
+                    key={row.id}
+                    className="grid gap-3 rounded-xl border border-gray-200 p-3 md:grid-cols-12"
+                  >
+                    <label className={`${labelClass} md:col-span-4`}>
+                      Descripción
+                      <input
+                        value={row.description}
+                        onChange={(event) =>
+                          updateItem(row.id, { description: event.target.value })
+                        }
+                        placeholder="Producto o servicio"
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className={`${labelClass} md:col-span-1`}>
+                      Cant.
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.quantity}
+                        onChange={(event) =>
+                          updateItem(row.id, { quantity: event.target.value })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className={`${labelClass} md:col-span-2`}>
+                      Precio unitario
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.unitPrice}
+                        onChange={(event) =>
+                          updateItem(row.id, { unitPrice: event.target.value })
+                        }
+                        placeholder="0"
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className={`${labelClass} md:col-span-2`}>
+                      Descuento ($)
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.discount}
+                        onChange={(event) =>
+                          updateItem(row.id, { discount: event.target.value })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className={`${labelClass} md:col-span-2`}>
+                      Impuesto
+                      <select
+                        value={row.taxRate}
+                        onChange={(event) =>
+                          updateItem(row.id, { taxRate: event.target.value })
+                        }
+                        className={inputClass}
+                      >
+                        {TAX_RATES.map((rate) => (
+                          <option key={rate.value} value={rate.value}>
+                            {rate.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="flex items-end md:col-span-1">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(row.id)}
+                        disabled={formItems.length === 1}
+                        aria-label={`Quitar concepto ${index + 1}`}
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setFormItems((current) => [...current, newFormItem()])
+                }
+                className="mt-3 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                + Agregar concepto
+              </button>
+            </div>
+
+            <label className={labelClass}>
+              Observaciones (opcional)
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                className={inputClass}
+              />
+            </label>
+
+            <div className="rounded-xl bg-gray-50 p-4">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>{money(formTotals.subtotal, "COP")}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-sm text-gray-600">
+                <span>Descuentos</span>
+                <span>{money(formTotals.discount, "COP")}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-sm text-gray-600">
+                <span>Impuestos</span>
+                <span>{money(formTotals.tax, "COP")}</span>
+              </div>
+              <div className="mt-2 flex justify-between border-t border-gray-300 pt-2 text-xl font-bold text-gray-900">
+                <span>Total</span>
+                <span>{money(formTotals.total, "COP")}</span>
+              </div>
+            </div>
+
+            {error && (
+              <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
-                disabled={!businessId}
-                className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700"
               >
                 Guardar borrador
               </button>
@@ -850,6 +1227,38 @@ export default function FacturacionPage() {
                 >
                   {documentView === "preview" ? "Ver detalle" : "Vista previa"}
                 </button>
+
+                {selectedDocument.status === "draft" && (
+                  <button
+                    type="button"
+                    onClick={() => issueDocument(selectedDocument)}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Emitir documento
+                  </button>
+                )}
+
+                {selectedDocument.status === "issued" &&
+                  selectedDocument.type !== "credit_note" &&
+                  selectedDocument.type !== "debit_note" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => createNote(selectedDocument, "credit_note")}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        Crear nota crédito
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => createNote(selectedDocument, "debit_note")}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        Crear nota débito
+                      </button>
+                    </>
+                  )}
 
                 <button
                   type="button"

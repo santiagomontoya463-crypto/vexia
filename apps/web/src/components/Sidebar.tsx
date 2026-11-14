@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ROLE_LABELS, useAuth } from "../lib/auth/AuthProvider";
+import { canAccessPath } from "../lib/access";
+import { useIndustry } from "../lib/industry";
 
 const menuSections = [
   {
     title: "Principal",
-    items: [{ name: "Dashboard", href: "/dashboard", icon: "⌂" }],
+    items: [{ name: "Inicio", href: "/inicio", icon: "⌂" }],
   },
   {
     title: "Gestión",
@@ -167,11 +170,79 @@ function StianLogo() {
   );
 }
 
-export default function Sidebar() {
+function businessInitials(name: string) {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return letters || "MN";
+}
+
+export default function Sidebar({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
+  const {
+    user,
+    isMaster,
+    memberships,
+    activeMembership,
+    setActiveBusiness,
+    signOut,
+  } = useAuth();
+
+  const industry = useIndustry();
+
+  const labelByHref: Record<string, string> = {
+    "/reservas": industry.reservations,
+    "/clientes": industry.clients,
+    "/servicios": industry.services,
+    "/productos": industry.products,
+    "/trabajadores": industry.workers,
+  };
+
+  const businessName = activeMembership?.business.name ?? "Mi negocio";
+  const role = activeMembership?.role;
+  const enabledModules = activeMembership?.business.enabled_modules;
+
+  // Sin negocio (por ejemplo, el propietario de la plataforma) solo se muestra el panel Master.
+  const baseSections: typeof menuSections =
+    memberships.length === 0 ? [] : menuSections;
+
+  const visibleSections = [
+    ...baseSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) =>
+          canAccessPath(role, enabledModules, item.href),
+        ),
+      }))
+      .filter((section) => section.items.length > 0),
+    ...(isMaster
+      ? [
+          {
+            title: "Plataforma",
+            items: [{ name: "Panel Master", href: "/master", icon: "★" }],
+          },
+        ]
+      : []),
+  ];
+
+  const userLabel =
+    (user?.user_metadata?.full_name as string | undefined) ||
+    user?.email ||
+    "Usuario STIAN";
+
+  const userInitials = businessInitials(userLabel);
+  const roleLabel = isMaster && !role ? "Propietario de la plataforma" : role ? ROLE_LABELS[role] : "";
 
   return (
-    <aside className="relative flex min-h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white text-slate-800 transition-colors dark:border-white/[0.08] dark:bg-[#0b1020] dark:text-slate-100 sm:w-72">
+    <aside className="relative flex h-full w-full flex-col overflow-hidden border-r border-slate-200/80 bg-white text-slate-800 transition-colors dark:border-white/[0.08] dark:bg-[#0b1020] dark:text-slate-100">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -left-24 top-20 h-52 w-52 rounded-full bg-violet-500/[0.08] blur-3xl"
@@ -180,7 +251,8 @@ export default function Sidebar() {
       {/* Identidad STIAN */}
       <div className="relative border-b border-slate-200/80 px-5 py-6 dark:border-white/[0.08] sm:px-6">
         <Link
-          href="/dashboard"
+          href="/inicio"
+          onClick={onNavigate}
           className="group flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
           aria-label="STIAN, ir al panel principal"
         >
@@ -206,13 +278,27 @@ export default function Sidebar() {
 
           <div className="mt-3 flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 text-sm font-bold text-white shadow-md shadow-violet-500/20">
-              MN
+              {businessInitials(businessName)}
             </div>
 
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                Mi negocio
+                {businessName}
               </p>
+              {memberships.length > 1 && (
+                <select
+                  value={activeMembership?.business.id}
+                  onChange={(event) => setActiveBusiness(event.target.value)}
+                  aria-label="Cambiar de negocio"
+                  className="mt-1 w-full rounded-md border border-slate-200 bg-transparent text-xs text-slate-600 dark:border-white/10 dark:text-slate-300"
+                >
+                  {memberships.map((item) => (
+                    <option key={item.business.id} value={item.business.id}>
+                      {item.business.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="mt-1 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -227,10 +313,10 @@ export default function Sidebar() {
       {/* Navegación */}
       <nav
         aria-label="Navegación principal"
-        className="relative min-h-0 flex-1 overflow-y-auto px-3 py-6"
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-6"
       >
         <div className="space-y-6">
-          {menuSections.map((section) => (
+          {visibleSections.map((section) => (
             <section key={section.title}>
               <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                 {section.title}
@@ -240,13 +326,14 @@ export default function Sidebar() {
                 {section.items.map((item) => {
                   const active =
                     pathname === item.href ||
-                    (item.href !== "/dashboard" &&
+                    (item.href !== "/inicio" &&
                       pathname.startsWith(`${item.href}/`));
 
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={onNavigate}
                       aria-current={active ? "page" : undefined}
                       className={`group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
                         active
@@ -272,7 +359,7 @@ export default function Sidebar() {
                       </span>
 
                       <span className="min-w-0 flex-1 leading-5">
-                        {item.name}
+                        {labelByHref[item.href] ?? item.name}
                       </span>
 
                       {active && (
@@ -294,24 +381,27 @@ export default function Sidebar() {
       <div className="relative border-t border-slate-200/80 p-4 dark:border-white/[0.08]">
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/[0.06] dark:bg-white/[0.025]">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-600 text-xs font-bold text-white shadow-sm dark:from-violet-600 dark:to-indigo-600">
-            SM
+            {userInitials}
           </div>
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-              Usuario STIAN
+              {userLabel}
             </p>
             <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
-              Propietario
+              {roleLabel}
             </p>
           </div>
 
-          <span
-            aria-hidden="true"
-            className="text-slate-400 dark:text-slate-500"
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+            className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
           >
-            ⋮
-          </span>
+            Salir
+          </button>
         </div>
       </div>
     </aside>

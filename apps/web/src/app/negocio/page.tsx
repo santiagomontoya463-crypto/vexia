@@ -1,5 +1,6 @@
 "use client";
 
+import BusinessTypeCard from "../../components/BusinessTypeCard";
 import { useEffect, useState } from "react";
 import { getActiveBusiness, saveBusiness, setActiveBusinessId } from "../../lib/business";
 import { getBusinessOperations, saveBusinessOperations } from "../../lib/business/operations";
@@ -33,6 +34,8 @@ export default function BusinessPage() {
         phone: String(data.get("phone") ?? "").trim(),
         email: String(data.get("email") ?? "").trim(),
         address: String(data.get("address") ?? "").trim(),
+        documentType: "NIT",
+        documentNumber: String(data.get("documentNumber") ?? "").trim(),
         countryCode: existing?.countryCode ?? "CO",
         currency: existing?.currency ?? "COP",
         createdAt: existing?.createdAt ?? now,
@@ -107,6 +110,8 @@ export default function BusinessPage() {
           </div>
         )}
 
+        <BusinessTypeCard />
+
         <form key={business?.id ?? "new-business"} onSubmit={handleSubmit} className="space-y-6">
 
           {/* INFORMACIÓN GENERAL */}
@@ -141,23 +146,23 @@ export default function BusinessPage() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Tipo de negocio
+                  ¿Qué ofreces?
                 </label>
 
                 <select
                   name="type"
-                  defaultValue={business?.type ?? "Servicios"}
+                  defaultValue={
+                    ["Servicios", "Productos", "Servicios y productos"].includes(
+                      business?.type ?? "",
+                    )
+                      ? business?.type
+                      : "Servicios"
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 >
                   <option>Servicios</option>
                   <option>Productos</option>
                   <option>Servicios y productos</option>
-                  <option>Barbería</option>
-                  <option>Spa</option>
-                  <option>Clínica</option>
-                  <option>Taller</option>
-                  <option>Servicio técnico</option>
-                  <option>Otro</option>
                 </select>
               </div>
 
@@ -219,6 +224,20 @@ export default function BusinessPage() {
                   name="email"
                   defaultValue={business?.email ?? ""}
                   placeholder="contacto@negocio.com"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  NIT o documento del negocio
+                </label>
+
+                <input
+                  type="text"
+                  name="documentNumber"
+                  defaultValue={business?.documentNumber ?? ""}
+                  placeholder="900123456-7"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                 />
               </div>

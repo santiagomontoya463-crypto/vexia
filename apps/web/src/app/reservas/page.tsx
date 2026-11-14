@@ -1,6 +1,11 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import {
+  readStoredList,
+  usePersistentList,
+} from "../../lib/sync/usePersistentList";
+import { lower, useIndustry } from "../../lib/industry";
 
 type Status =
   | "Confirmada"
@@ -20,85 +25,6 @@ type Reservation = {
   status: Status;
 };
 
-const clients = [
-  { name: "Carlos Gómez", phone: "300 000 0000" },
-  { name: "Laura Martínez", phone: "301 000 0000" },
-  { name: "Andrés Rodríguez", phone: "302 000 0000" },
-  { name: "Daniela López", phone: "303 000 0000" },
-  { name: "Sebastián Vargas", phone: "304 000 0000" },
-];
-
-const services = [
-  { name: "Corte de cabello", price: 30000 },
-  { name: "Corte + barba", price: 45000 },
-  { name: "Diseño de barba", price: 25000 },
-  { name: "Corte premium", price: 50000 },
-];
-
-const professionals = [
-  "Juan Pérez",
-  "Miguel Torres",
-  "Laura Gómez",
-];
-
-const initialReservations: Reservation[] = [
-  {
-    id: 1,
-    date: "2026-10-06",
-    time: "08:00",
-    client: "Carlos Gómez",
-    phone: "300 000 0000",
-    service: "Corte de cabello",
-    professional: "Juan Pérez",
-    price: 30000,
-    status: "Confirmada",
-  },
-  {
-    id: 2,
-    date: "2026-10-06",
-    time: "09:30",
-    client: "Laura Martínez",
-    phone: "301 000 0000",
-    service: "Corte + barba",
-    professional: "Juan Pérez",
-    price: 45000,
-    status: "Confirmada",
-  },
-  {
-    id: 3,
-    date: "2026-10-06",
-    time: "11:00",
-    client: "Andrés Rodríguez",
-    phone: "302 000 0000",
-    service: "Corte de cabello",
-    professional: "Miguel Torres",
-    price: 30000,
-    status: "Pendiente",
-  },
-  {
-    id: 4,
-    date: "2026-10-06",
-    time: "14:00",
-    client: "Daniela López",
-    phone: "303 000 0000",
-    service: "Diseño de barba",
-    professional: "Miguel Torres",
-    price: 25000,
-    status: "Reprogramada",
-  },
-  {
-    id: 5,
-    date: "2026-10-07",
-    time: "16:30",
-    client: "Sebastián Vargas",
-    phone: "304 000 0000",
-    service: "Corte premium",
-    professional: "Laura Gómez",
-    price: 50000,
-    status: "Confirmada",
-  },
-];
-
 const currency = (value: number) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -106,7 +32,17 @@ const currency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const today = "2026-10-06";
+function todayString() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+type StoredClient = { name?: string; phone?: string };
+type StoredService = { name?: string; price?: number | string; status?: string };
+type StoredWorker = { name?: string; status?: string };
 
 function StatusBadge({ status }: { status: Status }) {
   const styles: Record<Status, string> = {
@@ -186,8 +122,41 @@ function Modal({
 }
 
 export default function ReservasPage() {
+  const industry = useIndustry();
   const [reservations, setReservations] =
-    useState<Reservation[]>(initialReservations);
+    usePersistentList<Reservation>("stian:reservations");
+
+  const today = useMemo(() => todayString(), []);
+
+  const clients = useMemo(
+    () =>
+      readStoredList<StoredClient>("stian:clients")
+        .filter((item) => item.name)
+        .map((item) => ({
+          name: String(item.name),
+          phone: item.phone ?? "",
+        })),
+    [],
+  );
+
+  const services = useMemo(
+    () =>
+      readStoredList<StoredService>("stian:services")
+        .filter((item) => item.name && item.status !== "Inactivo")
+        .map((item) => ({
+          name: String(item.name),
+          price: Number(item.price) || 0,
+        })),
+    [],
+  );
+
+  const professionals = useMemo(() => {
+    const names = readStoredList<StoredWorker>("stian:workers")
+      .filter((item) => item.name && item.status === "Activo")
+      .map((item) => String(item.name));
+
+    return names.length > 0 ? names : ["Sin asignar"];
+  }, []);
 
   const [period, setPeriod] =
     useState<"dia" | "semana">("dia");
@@ -212,12 +181,12 @@ export default function ReservasPage() {
   const [clientName, setClientName] = useState("");
   const [phone, setPhone] = useState("");
   const [service, setService] =
-    useState(services[0].name);
+    useState(services[0]?.name ?? "");
   const [professional, setProfessional] =
     useState(professionals[0]);
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("10:00");
-  const [price, setPrice] = useState("30000");
+  const [price, setPrice] = useState("0");
 
   const visibleReservations = useMemo(() => {
     return reservations
@@ -280,11 +249,11 @@ export default function ReservasPage() {
   const resetForm = () => {
     setClientName("");
     setPhone("");
-    setService(services[0].name);
+    setService(services[0]?.name ?? "");
     setProfessional(professionals[0]);
     setDate(selectedDate);
     setTime("10:00");
-    setPrice(String(services[0].price));
+    setPrice(String(services[0]?.price ?? 0));
   };
 
   const openNewReservation = () => {
@@ -440,11 +409,11 @@ export default function ReservasPage() {
             </p>
 
             <h1 className="text-3xl font-bold tracking-tight">
-              Reservas
+              {industry.reservations}
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Administra citas, profesionales,
+              Administra {lower(industry.reservations)}, {lower(industry.workers)},
               horarios, estados y reprogramaciones
               desde un solo lugar.
             </p>
@@ -455,9 +424,17 @@ export default function ReservasPage() {
             onClick={openNewReservation}
             className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
           >
-            + Nueva reserva
+            + {industry.newReservation}
           </button>
         </div>
+
+        {services.length === 0 && (
+          <p className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            Para crear {lower(industry.reservations)} primero agrega al menos
+            un elemento en {industry.services}. {industry.clients} y{" "}
+            {industry.workers} también salen de sus secciones.
+          </p>
+        )}
 
         {/* INDICADORES */}
 
@@ -465,7 +442,7 @@ export default function ReservasPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">
-              Reservas
+              {industry.reservations}
             </p>
             <p className="mt-2 text-2xl font-bold">
               {reservations.length}
@@ -687,11 +664,11 @@ export default function ReservasPage() {
           {visibleReservations.length === 0 ? (
             <div className="p-12 text-center">
               <p className="font-semibold">
-                No hay reservas
+                No hay {lower(industry.reservations)}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
-                No encontramos reservas con los
+                No encontramos {lower(industry.reservations)} con los
                 filtros seleccionados.
               </p>
 
@@ -790,7 +767,7 @@ export default function ReservasPage() {
 
       {modal === "new" && (
         <Modal
-          title="Nueva reserva"
+          title={industry.newReservation}
           description="Registra una nueva cita para el negocio."
           onClose={() => setModal(null)}
         >

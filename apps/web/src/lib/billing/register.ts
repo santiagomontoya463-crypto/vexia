@@ -12,6 +12,15 @@ import {
   saveBillingSeries,
 } from "./storage";
 
+const DEFAULT_PREFIX: Record<BillingDocumentType, string> = {
+  invoice: "FV",
+  received_invoice: "FR",
+  credit_note: "NC",
+  debit_note: "ND",
+  receipt: "RC",
+  other: "DO",
+};
+
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -144,7 +153,7 @@ export function issueBillingDocument(
 
   validateDocument(document);
 
-  const series = loadBillingSeries(businessId).find(
+  let series = loadBillingSeries(businessId).find(
     (item) =>
       item.documentType === document.type &&
       item.active &&
@@ -152,9 +161,16 @@ export function issueBillingDocument(
   );
 
   if (!series) {
-    throw new Error(
-      "Configura una serie activa para este tipo de documento antes de emitir.",
-    );
+    // Primera emisión de este tipo de documento: se crea la serie por defecto.
+    series = saveBillingSeries({
+      id: makeId("series"),
+      businessId,
+      documentType: document.type,
+      series: "A",
+      prefix: DEFAULT_PREFIX[document.type],
+      nextNumber: 1,
+      active: true,
+    });
   }
 
   const number = `${series.prefix ?? ""}${String(series.nextNumber).padStart(6, "0")}`;

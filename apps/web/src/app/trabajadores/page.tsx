@@ -1,6 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  readStoredList,
+  usePersistentList,
+} from "../../lib/sync/usePersistentList";
+import { lower, useIndustry } from "../../lib/industry";
 
 type WorkerStatus = "Activo" | "Inactivo" | "Pendiente";
 
@@ -19,87 +24,103 @@ type Worker = {
   lastActivity: string;
 };
 
-const initialWorkers: Worker[] = [
-  {
-    id: 1,
-    name: "Andrés Martínez",
-    email: "andres@empresa.com",
-    phone: "+57 300 000 0000",
-    role: "Administrador",
-    status: "Activo",
-    services: ["Corte", "Barba"],
-    schedule: "Lun — Sáb · 8:00 AM — 6:00 PM",
-    reservations: 18,
-    initials: "AM",
-    color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300",
-    lastActivity: "Hace 12 minutos",
-  },
-  {
-    id: 2,
-    name: "Carlos Gómez",
-    email: "carlos@empresa.com",
-    phone: "+57 301 000 0000",
-    role: "Trabajador",
-    status: "Activo",
-    services: ["Corte", "Diseño"],
-    schedule: "Mar — Sáb · 9:00 AM — 7:00 PM",
-    reservations: 24,
-    initials: "CG",
-    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
-    lastActivity: "Hace 35 minutos",
-  },
-  {
-    id: 3,
-    name: "Laura Rodríguez",
-    email: "laura@empresa.com",
-    phone: "+57 302 000 0000",
-    role: "Gerente / Supervisor",
-    status: "Activo",
-    services: ["Color", "Tratamiento"],
-    schedule: "Lun — Vie · 8:00 AM — 5:00 PM",
-    reservations: 16,
-    initials: "LR",
-    color: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
-    lastActivity: "Ayer",
-  },
-  {
-    id: 4,
-    name: "Miguel Torres",
-    email: "miguel@empresa.com",
-    phone: "+57 303 000 0000",
-    role: "Trabajador",
-    status: "Pendiente",
-    services: ["Corte"],
-    schedule: "Sin horario configurado",
-    reservations: 0,
-    initials: "MT",
-    color: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
-    lastActivity: "Invitación enviada",
-  },
-];
+type StoredService = { name?: string; status?: string };
 
-const roles = [
-  "Todos",
-  "Propietario",
-  "Gerente / Supervisor",
-  "Administrador",
-  "Trabajador",
-];
+/** Lista desplegable con casillas para elegir varios elementos. */
+function MultiSelect({
+  options,
+  selected,
+  onToggle,
+  placeholder,
+  emptyMessage,
+}: {
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  placeholder: string;
+  emptyMessage: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-const serviceOptions = [
-  "Corte",
-  "Barba",
-  "Diseño",
-  "Color",
-  "Tratamiento",
-  "Manicure",
-  "Pedicure",
-  "Masaje",
-  "Diagnóstico",
-];
+  const visible = options.filter((item) =>
+    item.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950"
+      >
+        <span className={selected.length ? "" : "text-slate-400"}>
+          {selected.length
+            ? `${selected.length} seleccionado${selected.length === 1 ? "" : "s"}`
+            : placeholder}
+        </span>
+        <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+      </button>
+
+      {selected.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selected.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onToggle(item)}
+              className="cursor-pointer rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950"
+            >
+              {item} ✕
+            </button>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          {options.length === 0 ? (
+            <p className="p-3 text-sm text-slate-500">{emptyMessage}</p>
+          ) : (
+            <>
+              {options.length > 6 && (
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar..."
+                  className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none dark:border-slate-700 dark:bg-slate-950"
+                />
+              )}
+
+              {visible.map((item) => (
+                <label
+                  key={item}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(item)}
+                    onChange={() => onToggle(item)}
+                  />
+                  {item}
+                </label>
+              ))}
+
+              {visible.length === 0 && (
+                <p className="p-3 text-sm text-slate-500">Sin resultados.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkersPage() {
-  const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
+  const industry = useIndustry();
+  const [workers, setWorkers] = usePersistentList<Worker>("stian:workers");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
@@ -110,9 +131,25 @@ export default function WorkersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("Trabajador");
+  const [role, setRole] = useState(industry.workerRoles[0]);
   const [services, setServices] = useState<string[]>([]);
   const [schedule, setSchedule] = useState("Lun — Sáb · 8:00 AM — 6:00 PM");
+
+  const serviceOptions = useMemo(
+    () =>
+      readStoredList<StoredService>("stian:services")
+        .filter((item) => item.name && item.status !== "Inactivo")
+        .map((item) => String(item.name)),
+    [],
+  );
+
+  const roleOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([...industry.workerRoles, ...workers.map((item) => item.role)]),
+      ),
+    [industry.workerRoles, workers],
+  );
 
   const filteredWorkers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -186,7 +223,7 @@ export default function WorkersPage() {
     setName("");
     setEmail("");
     setPhone("");
-    setRole("Trabajador");
+    setRole(industry.workerRoles[0]);
     setServices([]);
     setSchedule("Lun — Sáb · 8:00 AM — 6:00 PM");
     setShowForm(false);
@@ -219,12 +256,12 @@ export default function WorkersPage() {
             </div>
 
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Trabajadores
+              {industry.workers}
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-              Administra tu equipo, asigna servicios, controla horarios y
-              consulta la actividad de cada profesional.
+              Administra tu equipo, asigna {lower(industry.services)}, controla
+              horarios y consulta la actividad de cada persona.
             </p>
           </div>
 
@@ -233,7 +270,7 @@ export default function WorkersPage() {
             onClick={() => setShowForm(true)}
             className="cursor-pointer rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >
-            + Agregar trabajador
+            + {industry.addWorker}
           </button>
         </div>
 
@@ -274,7 +311,7 @@ export default function WorkersPage() {
           <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold">Nuevo trabajador</h2>
+                <h2 className="text-lg font-bold">{industry.newWorker}</h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   Registra la información básica y prepara su acceso al
                   negocio.
@@ -318,7 +355,7 @@ export default function WorkersPage() {
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
-                    Rol
+                    Cargo
                   </label>
 
                   <select
@@ -326,11 +363,9 @@ export default function WorkersPage() {
                     onChange={(event) => setRole(event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950"
                   >
-                    {roles
-                      .filter((item) => item !== "Todos")
-                      .map((item) => (
-                        <option key={item}>{item}</option>
-                      ))}
+                    {roleOptions.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -354,30 +389,16 @@ export default function WorkersPage() {
 
               <div className="mt-6">
                 <p className="mb-3 text-sm font-semibold">
-                  Servicios que puede realizar
+                  {industry.skillsLabel}
                 </p>
 
-                <div className="flex flex-wrap gap-2">
-                  {serviceOptions.map((service) => {
-                    const selected = services.includes(service);
-
-                    return (
-                      <button
-                        key={service}
-                        type="button"
-                        onClick={() => toggleService(service)}
-                        className={`cursor-pointer rounded-full border px-4 py-2 text-xs font-semibold transition ${
-                          selected
-                            ? "border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
-                        }`}
-                      >
-                        {selected ? "✓ " : ""}
-                        {service}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MultiSelect
+                  options={serviceOptions}
+                  selected={services}
+                  onToggle={toggleService}
+                  placeholder={`Seleccionar ${lower(industry.services)}`}
+                  emptyMessage={`Aún no hay ${lower(industry.services)}. Agrégalos primero en la sección ${industry.services}.`}
+                />
               </div>
 
               <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -393,7 +414,7 @@ export default function WorkersPage() {
                   type="submit"
                   className="cursor-pointer rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
-                  Crear trabajador
+                  Crear {lower(industry.worker)}
                 </button>
               </div>
             </form>
@@ -423,7 +444,7 @@ export default function WorkersPage() {
                 onChange={(event) => setRoleFilter(event.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-950"
               >
-                {roles.map((item) => (
+                {["Todos", ...roleOptions].map((item) => (
                   <option key={item}>{item}</option>
                 ))}
               </select>
