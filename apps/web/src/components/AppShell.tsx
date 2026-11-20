@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../lib/auth/AuthProvider";
 import { canAccessPath } from "../lib/access";
+import InvitationsBanner from "./InvitationsBanner";
 
 // Páginas abiertas, sin menú lateral ni sesión obligatoria.
 const PUBLIC_ROUTES = ["/", "/login", "/registro", "/recuperar", "/restablecer"];
 
 // Páginas que exigen sesión pero se muestran sin menú.
-const FOCUSED_ROUTES = ["/crear-negocio"];
+const FOCUSED_ROUTES = ["/crear-negocio", "/cambiar-clave"];
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
   return (
@@ -34,6 +36,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     activeMembership,
     blockedReason,
     accountError,
+    mustChangePassword,
     dataReady,
     syncState,
     refresh,
@@ -67,6 +70,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (mustChangePassword) {
+      if (pathname !== "/cambiar-clave") router.replace("/cambiar-clave");
+      return;
+    }
+
+    if (pathname === "/cambiar-clave") {
+      router.replace("/inicio");
+      return;
+    }
+
     if (pathname === "/master") {
       if (!isMaster) router.replace("/inicio");
       return;
@@ -97,6 +110,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     memberships,
     activeMembership,
     accountError,
+    mustChangePassword,
     pathname,
     router,
   ]);
@@ -146,22 +160,59 @@ export default function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
+  if (mustChangePassword && pathname !== "/cambiar-clave") {
+    return <FullScreenMessage>Preparando tu cuenta...</FullScreenMessage>;
+  }
+
   if (isFocused) {
     return <>{children}</>;
   }
 
+  // Una empresa con la prueba o la suscripción vencida todavía puede entrar a
+  // «Suscripción» para pagar y reactivarse.
+  if (blockedReason && pathname === "/suscripcion") {
+    return (
+      <div className="min-h-screen bg-[#f5f6fc] text-slate-900 dark:bg-[#080d19] dark:text-slate-100">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-5 pt-5 sm:px-8">
+          <p className="text-sm text-slate-500 dark:text-slate-400">{blockedReason}</p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-white/15"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+        {children}
+      </div>
+    );
+  }
+
   if (blockedReason && pathname !== "/master") {
+    const businessStatus = activeMembership?.business.status;
+    const canPay = businessStatus === "trial" || businessStatus === "active";
+
     return (
       <FullScreenMessage>
         <p className="font-bold">Acceso suspendido</p>
         <p className="mt-2 text-slate-500">{blockedReason}</p>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="mt-5 rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white"
-        >
-          Cerrar sesión
-        </button>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {canPay && (
+            <Link
+              href="/suscripcion"
+              className="rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white"
+            >
+              Renovar suscripción
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </FullScreenMessage>
     );
   }
@@ -206,6 +257,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <span className="text-sm font-extrabold tracking-[0.16em] text-slate-900 dark:text-white">
             STIAN
           </span>
+        </div>
+
+        <div className="px-5 pt-5 sm:px-8 lg:px-10 empty:hidden">
+          <InvitationsBanner />
         </div>
 
         <div key={activeMembership?.business.id ?? "sin-negocio"}>

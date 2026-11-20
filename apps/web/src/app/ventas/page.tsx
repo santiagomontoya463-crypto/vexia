@@ -9,6 +9,10 @@ import type { Product } from "../../lib/inventory";
 
 import { useEffect, useMemo, useState } from "react";
 
+import { loadClients, saveClients } from "../../lib/clients";
+import { useIndustry } from "../../lib/industry";
+import { readStoredList } from "../../lib/sync/usePersistentList";
+
 import {
   calculatePendingAmount,
   calculateSaleTotals,
@@ -57,6 +61,23 @@ const formatMoney = (value: number) =>
   }).format(value);
 
 export default function VentasPage() {
+  const industry = useIndustry();
+  const [clientNames, setClientNames] = useState<string[]>([]);
+  const [workerNames, setWorkerNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    setClientNames((loadClients() ?? []).map((item) => item.name));
+    setServices(
+      readStoredList<Service & { status?: string }>("stian:services").filter(
+        (item) => item.name && item.status !== "Inactivo",
+      ),
+    );
+    setWorkerNames(
+      readStoredList<{ name?: string; status?: string }>("stian:workers")
+        .filter((item) => item.name && item.status === "Activo")
+        .map((item) => String(item.name)),
+    );
+  }, []);
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -83,6 +104,7 @@ export default function VentasPage() {
 
   const [paymentReceived, setPaymentReceived] =
     useState<number>(0);
+  const [paymentTouched, setPaymentTouched] = useState(false);
 
   /*
    * Cargamos los datos existentes una sola vez.
@@ -167,6 +189,11 @@ export default function VentasPage() {
           totals.total,
         );
 
+  // Por defecto se asume que se cobra el total; se puede cambiar a mano.
+  useEffect(() => {
+    if (!paymentTouched) setPaymentReceived(totals.total);
+  }, [totals.total, paymentTouched]);
+
   const currentPendingAmount = Math.max(
     totals.total -
       currentPaymentAmount,
@@ -176,6 +203,26 @@ export default function VentasPage() {
   /*
    * Agrega un producto o servicio al borrador.
    */
+  function handleItemName(value: string) {
+    setItemName(value);
+
+    const wanted = value.trim().toLowerCase();
+
+    if (itemType === "product") {
+      const found = products.find(
+        (item) => item.active && item.name.trim().toLowerCase() === wanted,
+      );
+
+      if (found) setItemPrice(String(found.salePrice));
+    } else {
+      const found = services.find(
+        (item) => item.name.trim().toLowerCase() === wanted,
+      );
+
+      if (found) setItemPrice(String(found.price));
+    }
+  }
+
   function addItem() {
     const price = Number(itemPrice);
     const quantity = Number(itemQuantity);
@@ -556,6 +603,36 @@ export default function VentasPage() {
     saveSales(nextSales);
 
     /*
+     * Si el cliente existe en Clientes, se suma la visita.
+     */
+    if (customer.trim()) {
+      const storedClients = loadClients();
+
+      if (storedClients) {
+        const wanted = customer.trim().toLowerCase();
+        let touched = false;
+
+        const updatedClients = storedClients.map((item) => {
+          if (touched || item.name.trim().toLowerCase() !== wanted) return item;
+
+          touched = true;
+
+          return {
+            ...item,
+            visits: item.visits + 1,
+            lastVisit: new Date().toLocaleDateString("es-CO", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+          };
+        });
+
+        if (touched) saveClients(updatedClients);
+      }
+    }
+
+    /*
      * Sincronizamos la venta con:
      *
      * Venta
@@ -579,6 +656,7 @@ export default function VentasPage() {
     setWorker("");
     setPaymentMethod("cash");
     setPaymentReceived(0);
+    setPaymentTouched(false);
     setDraftItems([]);
     setItemName("");
     setItemPrice("");
@@ -668,22 +746,36 @@ export default function VentasPage() {
             {/* CLIENTE / TRABAJADOR */}
 
             <div className="grid gap-4 md:grid-cols-2">
+              <datalist id="stian-clientes-ventas">
+                {clientNames.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
+
+              <datalist id="stian-trabajadores-ventas">
+                {workerNames.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
+
               <Input
-                label="Cliente"
+                label={industry.client}
                 value={customer}
                 onChange={
                   setCustomer
                 }
-                placeholder="Nombre del cliente"
+                placeholder={`Escribe o elige ${industry.client.toLowerCase()}`}
+                listId="stian-clientes-ventas"
               />
 
               <Input
-                label="Trabajador / vendedor"
+                label={`${industry.worker} / vendedor`}
                 value={worker}
                 onChange={
                   setWorker
                 }
                 placeholder="Responsable de la venta"
+                listId="stian-trabajadores-ventas"
               />
             </div>
 
@@ -717,17 +809,33 @@ export default function VentasPage() {
                   </option>
                 </select>
 
+                <datalist id="stian-ventas-servicios">
+                  {services.map((item) => (
+                    <option key={item.id} value={item.name} />
+                  ))}
+                </datalist>
+
+                <datalist id="stian-ventas-productos">
+                  {products
+                    .filter((item) => item.active)
+                    .map((item) => (
+                      <option key={item.id} value={item.name} />
+                    ))}
+                </datalist>
+
                 <input
                   value={itemName}
+                  list={
+                    itemType === "product"
+                      ? "stian-ventas-productos"
+                      : "stian-ventas-servicios"
+                  }
                   onChange={(
                     event,
                   ) =>
-                    setItemName(
-                      event.target
-                        .value,
-                    )
+                    handleItemName(event.target.value)
                   }
-                  placeholder="Nombre"
+                  placeholder="Nombre (elige o escribe)"
                   className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
 
@@ -907,29 +1015,24 @@ export default function VentasPage() {
                     <input
                       type="number"
                       min="0"
-                      max={
-                        totals.total
-                      }
                       value={
                         paymentReceived
                       }
                       onChange={(
                         event,
-                      ) =>
+                      ) => {
+                        setPaymentTouched(true);
                         setPaymentReceived(
-                          Math.min(
-                            Math.max(
-                              Number(
-                                event
-                                  .target
-                                  .value,
-                              ) || 0,
-                              0,
-                            ),
-                            totals.total,
+                          Math.max(
+                            Number(
+                              event
+                                .target
+                                .value,
+                            ) || 0,
+                            0,
                           ),
-                        )
-                      }
+                        );
+                      }}
                       placeholder="0"
                       className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     />
@@ -937,6 +1040,17 @@ export default function VentasPage() {
                     <p className="mt-1 text-xs text-slate-400">
                       Puedes registrar un pago completo o parcial.
                     </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentTouched(false);
+                        setPaymentReceived(totals.total);
+                      }}
+                      className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Cobrar el total
+                    </button>
                   </div>
                 )}
 
@@ -1055,6 +1169,18 @@ export default function VentasPage() {
                 >
                   Confirmar venta
                 </button>
+
+                {draftItems.length === 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Agrega al menos un concepto para poder confirmar la venta.
+                  </p>
+                )}
+
+                {itemError && draftItems.length > 0 && (
+                  <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/30 dark:text-red-400">
+                    {itemError}
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -1233,6 +1359,7 @@ function Input({
   value,
   onChange,
   placeholder,
+  listId,
 }: {
   label: string;
   value: string;
@@ -1240,6 +1367,7 @@ function Input({
     value: string,
   ) => void;
   placeholder: string;
+  listId?: string;
 }) {
   return (
     <label className="block">
@@ -1250,6 +1378,7 @@ function Input({
 
       <input
         value={value}
+        list={listId}
         onChange={(event) =>
           onChange(
             event.target.value,

@@ -15,7 +15,7 @@ const PATH_MODULES: [string, string][] = [
 
 // Los trabajadores solo operan el día a día; no ven finanzas ni configuración.
 const WORKER_MODULES = ["reservas", "clientes", "servicios", "productos", "ventas"];
-const MANAGEMENT_PATHS = ["/configuracion", "/negocio"];
+const MANAGEMENT_PATHS = ["/configuracion", "/negocio", "/equipo", "/suscripcion"];
 
 export function moduleForPath(path: string): string | null {
   const match = PATH_MODULES.find(

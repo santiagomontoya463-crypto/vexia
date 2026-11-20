@@ -6,7 +6,14 @@ import {
   calculateProductMarginPercent,
 } from "../../lib/inventory";
 import type { Product } from "../../lib/inventory";
-import { loadProducts, saveProducts } from "../../lib/inventory/storage";
+import {
+  loadInventoryMovements,
+  loadProducts,
+  saveInventoryMovements,
+  saveProducts,
+} from "../../lib/inventory/storage";
+import CatalogPicker from "../../components/CatalogPicker";
+import { lower, useIndustry } from "../../lib/industry";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -16,6 +23,17 @@ const money = (value: number) =>
   }).format(value);
 
 export default function ProductosPage() {
+  const industry = useIndustry();
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [eName, setEName] = useState("");
+  const [eSku, setESku] = useState("");
+  const [eCategory, setECategory] = useState("");
+  const [eCost, setECost] = useState("");
+  const [ePrice, setEPrice] = useState("");
+  const [eStock, setEStock] = useState("");
+  const [eMinimum, setEMinimum] = useState("");
+  const [eError, setEError] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
 
@@ -104,6 +122,88 @@ export default function ProductosPage() {
     setShowForm(false);
   }
 
+  function startEdit(product: Product) {
+    setEditing(product);
+    setEName(product.name);
+    setESku(product.sku ?? "");
+    setECategory(product.category ?? "");
+    setECost(String(product.cost));
+    setEPrice(String(product.salePrice));
+    setEStock(String(product.stock));
+    setEMinimum(String(product.minimumStock));
+    setEError("");
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+
+    const cost = Number(eCost);
+    const price = Number(ePrice);
+    const stock = Number(eStock);
+    const minimum = Number(eMinimum);
+
+    if (!eName.trim()) {
+      setEError("Ingresa el nombre.");
+      return;
+    }
+
+    if (!Number.isFinite(cost) || cost < 0) {
+      setEError("Ingresa un costo válido.");
+      return;
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      setEError("Ingresa un precio de venta válido.");
+      return;
+    }
+
+    if (!Number.isFinite(stock) || stock < 0) {
+      setEError("Ingresa una existencia válida.");
+      return;
+    }
+
+    if (!Number.isFinite(minimum) || minimum < 0) {
+      setEError("Ingresa un stock mínimo válido.");
+      return;
+    }
+
+    const delta = stock - editing.stock;
+
+    if (delta !== 0) {
+      saveInventoryMovements([
+        ...loadInventoryMovements(),
+        {
+          id: crypto.randomUUID(),
+          businessId: editing.businessId,
+          productId: editing.id,
+          type: "adjustment",
+          quantity: delta,
+          date: new Date().toISOString(),
+          notes: "Ajuste desde la edición del producto",
+        },
+      ]);
+    }
+
+    setProducts((current) =>
+      current.map((item) =>
+        item.id === editing.id
+          ? {
+              ...item,
+              name: eName.trim(),
+              sku: eSku.trim() || undefined,
+              category: eCategory.trim() || undefined,
+              cost,
+              salePrice: price,
+              stock,
+              minimumStock: minimum,
+            }
+          : item,
+      ),
+    );
+
+    setEditing(null);
+  }
+
   function toggleProduct(id: string) {
     setProducts((current) =>
       current.map((product) =>
@@ -129,7 +229,7 @@ export default function ProductosPage() {
             </p>
 
             <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
-              Productos
+              {industry.products}
             </h1>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -137,13 +237,25 @@ export default function ProductosPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowForm((value) => !value)}
-            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:opacity-90 dark:bg-white dark:text-slate-900"
-          >
-            {showForm ? "Cerrar" : "+ Nuevo producto"}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            {industry.suggestedProducts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCatalog(true)}
+                className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              >
+                Catálogo sugerido
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowForm((value) => !value)}
+              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:opacity-90 dark:bg-white dark:text-slate-900"
+            >
+              {showForm ? "Cerrar" : "+ Nuevo producto"}
+            </button>
+          </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -339,6 +451,14 @@ export default function ProductosPage() {
 
                       <button
                         type="button"
+                        onClick={() => startEdit(product)}
+                        className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => toggleProduct(product.id)}
                         className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
@@ -352,6 +472,105 @@ export default function ProductosPage() {
           )}
         </section>
       </div>
+      {showCatalog && (
+        <CatalogPicker
+          title={`Catálogo sugerido de ${lower(industry.products)}`}
+          description="Marca los que vendes y completa precio, costo y existencia. Los que no estén en la lista los creas a mano con «Nuevo producto»."
+          items={industry.suggestedProducts.map((item) => ({
+            name: item.name,
+            category: item.category,
+          }))}
+          existingNames={products.map((item) => item.name)}
+          priceLabel="Precio de venta"
+          withStock
+          confirmLabel="Agregar seleccionados"
+          onClose={() => setShowCatalog(false)}
+          onConfirm={(selection) => {
+            setProducts((current) => [
+              ...selection.map(
+                ({ item, price, cost, stock }): Product => ({
+                  id: crypto.randomUUID(),
+                  businessId: "current-business",
+                  name: item.name,
+                  category: item.category,
+                  cost,
+                  salePrice: price,
+                  stock,
+                  minimumStock: 5,
+                  status: "active",
+                  active: true,
+                }),
+              ),
+              ...current,
+            ]);
+
+            setShowCatalog(false);
+          }}
+        />
+      )}
+
+      {editing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+          >
+            <h2 className="text-lg font-bold">Editar producto</h2>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {[
+                { label: "Nombre", value: eName, set: setEName, type: "text", wide: true },
+                { label: "Categoría", value: eCategory, set: setECategory, type: "text" },
+                { label: "SKU (opcional)", value: eSku, set: setESku, type: "text" },
+                { label: "Costo", value: eCost, set: setECost, type: "number" },
+                { label: "Precio de venta", value: ePrice, set: setEPrice, type: "number" },
+                { label: "Existencia", value: eStock, set: setEStock, type: "number" },
+                { label: "Stock mínimo", value: eMinimum, set: setEMinimum, type: "number" },
+              ].map((field) => (
+                <label
+                  key={field.label}
+                  className={`text-sm font-medium ${field.wide ? "sm:col-span-2" : ""}`}
+                >
+                  {field.label}
+                  <input
+                    type={field.type}
+                    min={field.type === "number" ? "0" : undefined}
+                    value={field.value}
+                    onChange={(event) => field.set(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 dark:border-slate-700 dark:bg-slate-950"
+                  />
+                </label>
+              ))}
+            </div>
+
+            {eError && (
+              <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+                {eError}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+              >
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

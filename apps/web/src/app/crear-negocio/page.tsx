@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import BusinessTypePicker from "../../components/BusinessTypePicker";
+import InvitationsBanner from "../../components/InvitationsBanner";
 import AuthCard, {
   authButtonClass,
   authInputClass,
@@ -81,6 +82,8 @@ export default function CreateBusinessPage() {
         </button>
       }
     >
+      <InvitationsBanner onAccepted={() => router.replace("/inicio")} />
+
       <form onSubmit={submit} noValidate className="space-y-4">
         <label className="block text-sm font-medium">
           Nombre del negocio

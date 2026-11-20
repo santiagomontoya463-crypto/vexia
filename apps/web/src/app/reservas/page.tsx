@@ -6,12 +6,15 @@ import {
   usePersistentList,
 } from "../../lib/sync/usePersistentList";
 import { lower, useIndustry } from "../../lib/industry";
+import { loadClients, saveClients } from "../../lib/clients";
+import ChargeReservationModal from "../../components/reservations/ChargeReservationModal";
 
 type Status =
   | "Confirmada"
   | "Pendiente"
   | "Cancelada"
-  | "Reprogramada";
+  | "Reprogramada"
+  | "Completada";
 
 type Reservation = {
   id: number;
@@ -23,6 +26,9 @@ type Reservation = {
   professional: string;
   price: number;
   status: Status;
+  notes?: string;
+  saleId?: string;
+  documentId?: string;
 };
 
 const currency = (value: number) =>
@@ -54,6 +60,8 @@ function StatusBadge({ status }: { status: Status }) {
       "border-red-200 bg-red-50 text-red-700",
     Reprogramada:
       "border-blue-200 bg-blue-50 text-blue-700",
+    Completada:
+      "border-violet-200 bg-violet-50 text-violet-700",
   };
 
   return (
@@ -121,6 +129,86 @@ function Modal({
   );
 }
 
+function ServiceField({
+  label,
+  services,
+  value,
+  onChange,
+}: {
+  label: string;
+  services: { name: string; price: number }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [custom, setCustom] = useState(false);
+  const inList = services.some((item) => item.name === value);
+  const showInput =
+    custom || services.length === 0 || (value !== "" && !inList);
+
+  return (
+    <Field label={label}>
+      {services.length === 0 && (
+        <p className="mb-2 text-xs text-amber-700">
+          Aún no hay opciones creadas. Créalas en la sección de servicios o
+          escribe una aquí.
+        </p>
+      )}
+
+      {showInput ? (
+        <div className="flex gap-2">
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Escribe el nombre"
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+            required
+          />
+
+          {services.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setCustom(false);
+                onChange("");
+              }}
+              className="shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-semibold"
+            >
+              Ver lista
+            </button>
+          )}
+        </div>
+      ) : (
+        <select
+          value={inList ? value : ""}
+          onChange={(event) => {
+            if (event.target.value === "__otro__") {
+              setCustom(true);
+              onChange("");
+              return;
+            }
+
+            onChange(event.target.value);
+          }}
+          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+          required
+        >
+          <option value="" disabled>
+            Elige una opción
+          </option>
+
+          {services.map((item) => (
+            <option key={item.name} value={item.name}>
+              {item.name}
+            </option>
+          ))}
+
+          <option value="__otro__">Otro (escribir)</option>
+        </select>
+      )}
+    </Field>
+  );
+}
+
 export default function ReservasPage() {
   const industry = useIndustry();
   const [reservations, setReservations] =
@@ -128,15 +216,13 @@ export default function ReservasPage() {
 
   const today = useMemo(() => todayString(), []);
 
-  const clients = useMemo(
-    () =>
-      readStoredList<StoredClient>("stian:clients")
-        .filter((item) => item.name)
-        .map((item) => ({
-          name: String(item.name),
-          phone: item.phone ?? "",
-        })),
-    [],
+  const [clients, setClients] = useState(() =>
+    readStoredList<StoredClient>("stian:clients")
+      .filter((item) => item.name)
+      .map((item) => ({
+        name: String(item.name),
+        phone: item.phone ?? "",
+      })),
   );
 
   const services = useMemo(
@@ -181,12 +267,15 @@ export default function ReservasPage() {
   const [clientName, setClientName] = useState("");
   const [phone, setPhone] = useState("");
   const [service, setService] =
-    useState(services[0]?.name ?? "");
+    useState("");
   const [professional, setProfessional] =
     useState(professionals[0]);
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("10:00");
   const [price, setPrice] = useState("0");
+  const [notes, setNotes] = useState("");
+  const [savedMessage, setSavedMessage] = useState("");
+  const [chargeTarget, setChargeTarget] = useState<Reservation | null>(null);
 
   const visibleReservations = useMemo(() => {
     return reservations
@@ -249,11 +338,12 @@ export default function ReservasPage() {
   const resetForm = () => {
     setClientName("");
     setPhone("");
-    setService(services[0]?.name ?? "");
+    setService("");
     setProfessional(professionals[0]);
     setDate(selectedDate);
     setTime("10:00");
-    setPrice(String(services[0]?.price ?? 0));
+    setPrice("0");
+    setNotes("");
   };
 
   const openNewReservation = () => {
@@ -270,6 +360,7 @@ export default function ReservasPage() {
     setDate(reservation.date);
     setTime(reservation.time);
     setPrice(String(reservation.price));
+    setNotes(reservation.notes ?? "");
     setModal("edit");
   };
 
@@ -299,6 +390,41 @@ export default function ReservasPage() {
 
     if (!clientName.trim()) return;
 
+    if (!service.trim()) {
+      window.alert(
+        `Escribe o elige ${lower(industry.service)} para ${lower(industry.reservation)}.`,
+      );
+      return;
+    }
+
+    // Si la persona no está en la lista, se crea también en Clientes.
+    const wantedName = clientName.trim();
+    const alreadyExists = clients.some(
+      (item) => item.name.trim().toLowerCase() === wantedName.toLowerCase(),
+    );
+
+    if (!alreadyExists) {
+      saveClients([
+        {
+          id: crypto.randomUUID(),
+          name: wantedName,
+          phone: phone.trim(),
+          email: "",
+          notes: "",
+          visits: 0,
+          lastVisit: "Sin visitas",
+          status: "Activo",
+          createdAt: new Date().toISOString(),
+        },
+        ...(loadClients() ?? []),
+      ]);
+
+      setClients((current) => [
+        ...current,
+        { name: wantedName, phone: phone.trim() },
+      ]);
+    }
+
     const newReservation: Reservation = {
       id: Date.now(),
       date,
@@ -309,6 +435,7 @@ export default function ReservasPage() {
       professional,
       price: Number(price) || 0,
       status: "Pendiente",
+      notes: notes.trim() || undefined,
     };
 
     setReservations((current) =>
@@ -319,6 +446,16 @@ export default function ReservasPage() {
           )
       )
     );
+
+    // Se muestra la cita recién creada: se va a su fecha y se limpian los filtros.
+    setSelectedDate(newReservation.date);
+    setSearch("");
+    setStatusFilter("Todos");
+    setProfessionalFilter("Todos");
+    setSavedMessage(
+      `${industry.reservation} guardada: ${newReservation.client}, ${newReservation.date} a las ${newReservation.time}.`,
+    );
+    window.setTimeout(() => setSavedMessage(""), 6000);
 
     setModal(null);
     resetForm();
@@ -343,6 +480,7 @@ export default function ReservasPage() {
               date,
               time,
               price: Number(price) || 0,
+              notes: notes.trim() || undefined,
             }
           : item
       )
@@ -435,6 +573,21 @@ export default function ReservasPage() {
             {industry.workers} también salen de sus secciones.
           </p>
         )}
+
+        {savedMessage && (
+          <p
+            role="status"
+            className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
+          >
+            {savedMessage}
+          </p>
+        )}
+
+        <datalist id="stian-reservas-clientes">
+          {clients.map((item) => (
+            <option key={item.name} value={item.name} />
+          ))}
+        </datalist>
 
         {/* INDICADORES */}
 
@@ -567,6 +720,9 @@ export default function ReservasPage() {
               </option>
               <option value="Reprogramada">
                 Reprogramadas
+              </option>
+              <option value="Completada">
+                Completadas (cobradas)
               </option>
               <option value="Cancelada">
                 Canceladas
@@ -715,6 +871,12 @@ export default function ReservasPage() {
                         {reservation.service}
                       </p>
 
+                      {reservation.notes && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {industry.reasonLabel}: {reservation.notes}
+                        </p>
+                      )}
+
                       <p className="mt-2 text-xs text-slate-400">
                         {reservation.professional}
                         {" · "}
@@ -727,6 +889,21 @@ export default function ReservasPage() {
                       <span className="mr-2 text-sm font-semibold">
                         {currency(reservation.price)}
                       </span>
+
+                      {reservation.status !== "Cancelada" &&
+                        (reservation.saleId ? (
+                          <span className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">
+                            Cobrada ✓
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setChargeTarget(reservation)}
+                            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                          >
+                            Cobrar
+                          </button>
+                        ))}
 
                       <button
                         type="button"
@@ -778,37 +955,23 @@ export default function ReservasPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-              <Field label="Cliente">
-                <select
+              <Field label={industry.client}>
+                <input
+                  list="stian-reservas-clientes"
                   value={clientName}
                   onChange={(e) => {
                     const selected = clients.find(
-                      (client) =>
-                        client.name ===
-                        e.target.value
+                      (client) => client.name === e.target.value,
                     );
 
                     setClientName(e.target.value);
-                    setPhone(
-                      selected?.phone || ""
-                    );
+
+                    if (selected?.phone) setPhone(selected.phone);
                   }}
+                  placeholder={`Elige o escribe ${lower(industry.client)} nuevo`}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                   required
-                >
-                  <option value="">
-                    Seleccionar cliente
-                  </option>
-
-                  {clients.map((client) => (
-                    <option
-                      key={client.name}
-                      value={client.name}
-                    >
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
 
               <Field label="Teléfono">
@@ -822,26 +985,12 @@ export default function ReservasPage() {
                 />
               </Field>
 
-              <Field label="Servicio">
-                <select
-                  value={service}
-                  onChange={(e) =>
-                    handleServiceChange(
-                      e.target.value
-                    )
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                >
-                  {services.map((item) => (
-                    <option
-                      key={item.name}
-                      value={item.name}
-                    >
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <ServiceField
+                label={industry.service}
+                services={services}
+                value={service}
+                onChange={handleServiceChange}
+              />
 
               <Field label="Profesional">
                 <select
@@ -895,6 +1044,18 @@ export default function ReservasPage() {
                   required
                 />
               </Field>
+
+              <div className="sm:col-span-2">
+                <Field label={industry.reasonLabel}>
+                  <textarea
+                    rows={3}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={industry.reasonPlaceholder}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                  />
+                </Field>
+              </div>
 
             </div>
 
@@ -934,8 +1095,9 @@ export default function ReservasPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-              <Field label="Cliente">
+              <Field label={industry.client}>
                 <input
+                  list="stian-reservas-clientes"
                   value={clientName}
                   onChange={(e) =>
                     setClientName(e.target.value)
@@ -955,26 +1117,12 @@ export default function ReservasPage() {
                 />
               </Field>
 
-              <Field label="Servicio">
-                <select
-                  value={service}
-                  onChange={(e) =>
-                    handleServiceChange(
-                      e.target.value
-                    )
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                >
-                  {services.map((item) => (
-                    <option
-                      key={item.name}
-                      value={item.name}
-                    >
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <ServiceField
+                label={industry.service}
+                services={services}
+                value={service}
+                onChange={handleServiceChange}
+              />
 
               <Field label="Profesional">
                 <select
@@ -1025,6 +1173,18 @@ export default function ReservasPage() {
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 />
               </Field>
+
+              <div className="sm:col-span-2">
+                <Field label={industry.reasonLabel}>
+                  <textarea
+                    rows={3}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={industry.reasonPlaceholder}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                  />
+                </Field>
+              </div>
 
             </div>
 
@@ -1199,6 +1359,17 @@ export default function ReservasPage() {
                   </p>
                 </div>
 
+                {selectedReservation.notes && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-400">
+                      {industry.reasonLabel}
+                    </p>
+                    <p className="mt-1 font-semibold">
+                      {selectedReservation.notes}
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-xs text-slate-400">
                     Profesional
@@ -1246,6 +1417,24 @@ export default function ReservasPage() {
                 </p>
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+                  {selectedReservation.status !== "Cancelada" &&
+                    (selectedReservation.saleId ? (
+                      <span className="rounded-xl bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700">
+                        ✓ Cobrada
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChargeTarget(selectedReservation);
+                          setSelectedReservation(null);
+                        }}
+                        className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        💳 Cobrar
+                      </button>
+                    ))}
 
                   <button
                     type="button"
@@ -1313,6 +1502,21 @@ export default function ReservasPage() {
           </Modal>
         )}
 
+      {chargeTarget && (
+        <ChargeReservationModal
+          reservation={chargeTarget}
+          onClose={() => setChargeTarget(null)}
+          onCharged={({ saleId, documentId }) =>
+            setReservations((current) =>
+              current.map((item) =>
+                item.id === chargeTarget.id
+                  ? { ...item, status: "Completada", saleId, documentId }
+                  : item,
+              ),
+            )
+          }
+        />
+      )}
     </main>
   );
 }

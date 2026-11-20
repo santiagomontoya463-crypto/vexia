@@ -1,12 +1,14 @@
 "use client";
 
 import BusinessTypeCard from "../../components/BusinessTypeCard";
+import { useAuth } from "../../lib/auth/AuthProvider";
 import { useEffect, useState } from "react";
 import { getActiveBusiness, saveBusiness, setActiveBusinessId } from "../../lib/business";
 import { getBusinessOperations, saveBusinessOperations } from "../../lib/business/operations";
 import { useNotifications } from "../../components/notifications/NotificationProvider";
 export default function BusinessPage() {
   const { success, error } = useNotifications();
+  const { supabase, activeMembership, refresh } = useAuth();
   const [saved, setSaved] = useState(false);
   const [business, setBusiness] = useState<ReturnType<typeof getActiveBusiness>>();
   const [operations, setOperations] = useState<ReturnType<typeof getBusinessOperations>>();
@@ -74,6 +76,34 @@ export default function BusinessPage() {
       setOperations(nextOperations);
       setBusiness(business);
       setSaved(true);
+
+      const canEditCloud =
+        activeMembership?.business.id === business.id &&
+        (activeMembership.role === "owner" || activeMembership.role === "admin");
+
+      if (supabase && canEditCloud && business.name) {
+        void supabase
+          .from("businesses")
+          .update({
+            name: business.name,
+            document_type: "NIT",
+            document_number: business.documentNumber || null,
+            email: business.email || null,
+            phone: business.phone || null,
+            address: business.address || null,
+          })
+          .eq("id", business.id)
+          .then(async ({ error: updateError }) => {
+            if (updateError) {
+              window.alert(
+                `Se guardó en este dispositivo, pero no se pudo actualizar en la nube: ${updateError.message}`,
+              );
+            } else {
+              await refresh();
+            }
+          });
+      }
+
       success("La información de tu negocio se guardó correctamente.");
       window.setTimeout(() => setSaved(false), 3000);
     } catch (error) {

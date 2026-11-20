@@ -6,6 +6,12 @@ Los archivos de `migrations/` se ejecutan en orden en el **SQL Editor** de Supab
 2. `0002_permisos.sql`: permisos explícitos para la API de datos.
 3. `0003_datos.sql`: tabla `business_records` con los datos de cada empresa (clientes, ventas, productos, facturas, finanzas…) y sus reglas de seguridad.
 
+4. `0004_equipo.sql`: invitaciones por correo, roles y gestión del equipo.
+5. `0005_acceso.sql`: la lista del equipo indica qué usuarios fueron creados con contraseña temporal.
+6. `0006_roles.sql`: el propietario puede asignar cualquier rol.
+7. `0007_master.sql`: panel Master completo (pagos, métricas, auditoría, administradores).
+11. `0011_cobros.sql`: cuentas de cobro de la plataforma y solicitudes de pago de suscripción (la empresa reporta, el Master aprueba).
+
 ## Convertirte en propietario de la plataforma (Master)
 
 1. Crea tu cuenta desde la pantalla **Crear cuenta** de la aplicación.

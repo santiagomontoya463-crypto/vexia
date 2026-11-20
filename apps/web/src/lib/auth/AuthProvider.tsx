@@ -27,6 +27,13 @@ export type BusinessSummary = {
   id: string;
   name: string;
   business_type: string | null;
+  legal_name: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  country_code: string | null;
   status: BusinessStatus;
   suspended_reason: string | null;
   trial_ends_at: string | null;
@@ -55,6 +62,7 @@ type AuthContextValue = {
   memberships: Membership[];
   activeMembership: Membership | null;
   blockedReason: string | null;
+  mustChangePassword: boolean;
   accountError: string | null;
   syncState: SyncState;
   setActiveBusiness: (businessId: string) => void;
@@ -159,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase
           .from("business_members")
           .select(
-            "role, business:businesses(id, name, business_type, status, suspended_reason, trial_ends_at, subscription_ends_at, enabled_modules, currency)",
+            "role, business:businesses(id, name, business_type, legal_name, document_type, document_number, email, phone, address, country_code, status, suspended_reason, trial_ends_at, subscription_ends_at, enabled_modules, currency)",
           )
           .eq("user_id", currentUser.id)
           .eq("status", "active"),
@@ -320,16 +328,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!business || !dataReady) return;
 
     try {
-      if (!getBusiness(business.id)) {
-        const now = new Date().toISOString();
+      const local = getBusiness(business.id);
+      const now = new Date().toISOString();
 
+      if (!local) {
         saveBusiness({
           id: business.id,
           name: business.name,
-          type: "general",
-          countryCode: "CO",
+          type: "Servicios",
+          documentType: business.document_type ?? "NIT",
+          documentNumber: business.document_number ?? undefined,
+          email: business.email ?? undefined,
+          phone: business.phone ?? undefined,
+          address: business.address ?? undefined,
+          countryCode: business.country_code || "CO",
           currency: business.currency || "COP",
           createdAt: now,
+          updatedAt: now,
+        });
+      } else if (
+        (!local.documentNumber && business.document_number) ||
+        (!local.address && business.address) ||
+        (!local.phone && business.phone) ||
+        (!local.email && business.email)
+      ) {
+        // Solo se completan datos que faltan; no se pisan los editados aquí.
+        saveBusiness({
+          ...local,
+          documentType: local.documentType || business.document_type || "NIT",
+          documentNumber: local.documentNumber || business.document_number || undefined,
+          email: local.email || business.email || undefined,
+          phone: local.phone || business.phone || undefined,
+          address: local.address || business.address || undefined,
           updatedAt: now,
         });
       }
@@ -374,6 +404,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     memberships,
     activeMembership,
     blockedReason,
+    mustChangePassword: user?.user_metadata?.must_change_password === true,
     accountError,
     syncState,
     setActiveBusiness,

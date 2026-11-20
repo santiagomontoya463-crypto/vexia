@@ -8,6 +8,7 @@ import {
   createCorrectionNote,
   getBillingDocuments,
   issueBillingDocument,
+  saveBillingDocument,
 } from "../../lib/billing";
 import type {
   BillingDocument,
@@ -16,6 +17,8 @@ import type {
   BillingPartySnapshot,
 } from "../../lib/billing";
 import { getActiveBusiness, getActiveBusinessId } from "../../lib/business";
+import ShareDocumentModal from "../../components/billing/ShareDocumentModal";
+import { printTicket } from "../../lib/billing/print";
 
 const DOCUMENT_TYPES: {
   value: BillingDocumentType | "all";
@@ -278,6 +281,8 @@ export default function FacturacionPage() {
   const [partyAddress, setPartyAddress] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [shareDocument, setShareDocument] = useState<BillingDocument | null>(null);
+  const [ownBusiness, setOwnBusiness] = useState<ReturnType<typeof getActiveBusiness>>();
   const [formItems, setFormItems] = useState<FormItem[]>(() => [
     newFormItem(),
   ]);
@@ -290,6 +295,7 @@ export default function FacturacionPage() {
     useState<DocumentView>("detail");
 
   useEffect(() => {
+    setOwnBusiness(getActiveBusiness());
     const savedBusiness = getActiveBusinessId();
 
     if (savedBusiness) setBusinessId(savedBusiness);
@@ -380,6 +386,25 @@ export default function FacturacionPage() {
     setError("");
   }
 
+  function buildBusinessParty(): BillingPartySnapshot {
+    const business = getActiveBusiness();
+
+    return {
+      name: business?.name || "Mi negocio",
+      documentType: business?.documentNumber ? "NIT" : undefined,
+      documentNumber: business?.documentNumber || undefined,
+      email: business?.email || undefined,
+      phone: business?.phone || undefined,
+      address: business?.address || undefined,
+      countryCode: business?.countryCode || "CO",
+    };
+  }
+
+  const missingIssuerData = [
+    !ownBusiness?.name?.trim() && "el nombre",
+    !ownBusiness?.documentNumber?.trim() && "el NIT",
+  ].filter(Boolean) as string[];
+
   function resetForm() {
     setDocType("invoice");
     setPartyName("");
@@ -439,15 +464,7 @@ export default function FacturacionPage() {
     const totals = summarize(items);
     const business = getActiveBusiness();
 
-    const businessParty: BillingPartySnapshot = {
-      name: business?.name || "Mi negocio",
-      documentType: business?.documentNumber ? "NIT" : undefined,
-      documentNumber: business?.documentNumber || undefined,
-      email: business?.email || undefined,
-      phone: business?.phone || undefined,
-      address: business?.address || undefined,
-      countryCode: business?.countryCode || "CO",
-    };
+    const businessParty = buildBusinessParty();
 
     const party: BillingPartySnapshot = {
       name: partyName.trim(),
@@ -493,6 +510,15 @@ export default function FacturacionPage() {
   }
 
   function issueDocument(doc: BillingDocument) {
+    const current = getActiveBusiness();
+
+    if (doc.type !== "received_invoice" && !current?.documentNumber?.trim()) {
+      window.alert(
+        "Para emitir este documento tu negocio debe tener NIT. Regístralo en «Mi negocio» y vuelve a intentarlo.",
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
       "Al emitir el documento se le asigna un consecutivo y ya no podrá editarse. ¿Continuar?",
     );
@@ -500,6 +526,15 @@ export default function FacturacionPage() {
     if (!confirmed) return;
 
     try {
+      // El emisor se actualiza con los datos vigentes del negocio antes de emitir.
+      const party = buildBusinessParty();
+
+      saveBillingDocument(
+        doc.type === "received_invoice"
+          ? { ...doc, customerSnapshot: party }
+          : { ...doc, issuerSnapshot: party },
+      );
+
       issueBillingDocument(businessId, doc.id);
       refreshDocuments();
     } catch (err) {
@@ -745,6 +780,17 @@ export default function FacturacionPage() {
             Registrar mi negocio
           </Link>
           . Cuando lo guardes, vuelve a esta página.
+        </section>
+      )}
+
+      {businessId && missingIssuerData.length > 0 && (
+        <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+          A tu negocio le falta {missingIssuerData.join(" y ")}. Los documentos
+          que emitas deben mostrar el nombre y el NIT de la empresa.{" "}
+          <Link href="/negocio" className="font-bold underline">
+            Completar en Mi negocio
+          </Link>
+          .
         </section>
       )}
 
@@ -1262,6 +1308,22 @@ export default function FacturacionPage() {
 
                 <button
                   type="button"
+                  onClick={() => printTicket(selectedDocument)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Imprimir recibo (80 mm)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShareDocument(selectedDocument)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Compartir por correo
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => printDocument(selectedDocument)}
                   className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
                 >
@@ -1631,6 +1693,13 @@ export default function FacturacionPage() {
             </div>
           </div>
         </div>
+      )}
+      {shareDocument && (
+        <ShareDocumentModal
+          doc={shareDocument}
+          businessId={businessId}
+          onClose={() => setShareDocument(null)}
+        />
       )}
     </main>
   );

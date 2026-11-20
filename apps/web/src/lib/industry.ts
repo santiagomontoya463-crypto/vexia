@@ -14,6 +14,11 @@ export type SuggestedService = {
   duration: string;
 };
 
+export type SuggestedProduct = {
+  name: string;
+  category: string;
+};
+
 export type IndustryProfile = {
   type: string;
   client: string;
@@ -32,9 +37,12 @@ export type IndustryProfile = {
   product: string;
   products: string;
   skillsLabel: string;
+  reasonLabel: string;
+  reasonPlaceholder: string;
   workerRoles: string[];
   serviceCategories: string[];
   suggestedServices: SuggestedService[];
+  suggestedProducts: SuggestedProduct[];
 };
 
 const BASE: Omit<IndustryProfile, "type"> = {
@@ -54,9 +62,12 @@ const BASE: Omit<IndustryProfile, "type"> = {
   product: "Producto",
   products: "Productos",
   skillsLabel: "Servicios que puede realizar",
+  reasonLabel: "Detalle u observaciones",
+  reasonPlaceholder: "Lo que necesita o quiere el cliente",
   workerRoles: ["Trabajador", "Asistente", "Supervisor", "Administrador"],
   serviceCategories: ["General", "Atención", "Asesoría", "Soporte"],
   suggestedServices: [],
+  suggestedProducts: [],
 };
 
 function profile(
@@ -68,6 +79,8 @@ function profile(
 
 const PROFILES: IndustryProfile[] = [
   profile("Belleza y bienestar", {
+    reasonLabel: "Detalle o preferencias",
+    reasonPlaceholder: "Estilo, color, alergias o lo que desea la persona",
     worker: "Profesional",
     workers: "Profesionales",
     newWorker: "Nuevo profesional",
@@ -86,6 +99,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Salud", {
+    reasonLabel: "Motivo de la consulta",
+    reasonPlaceholder: "Síntomas, motivo de la visita o lo que va a consultar el paciente",
     client: "Paciente",
     clients: "Pacientes",
     newClient: "Nuevo paciente",
@@ -107,6 +122,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Droguería y farmacia", {
+    reasonLabel: "Detalle del pedido",
+    reasonPlaceholder: "Qué necesita o indicaciones del pedido",
     reservation: "Pedido",
     reservations: "Pedidos",
     newReservation: "Nuevo pedido",
@@ -159,6 +176,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Servicios profesionales", {
+    reasonLabel: "Motivo de la cita",
+    reasonPlaceholder: "Asunto o tema que se va a tratar",
     reservation: "Cita",
     reservations: "Citas",
     newReservation: "Nueva cita",
@@ -175,6 +194,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Educación y formación", {
+    reasonLabel: "Tema o nivel",
+    reasonPlaceholder: "Tema, nivel o necesidad del estudiante",
     client: "Estudiante",
     clients: "Estudiantes",
     newClient: "Nuevo estudiante",
@@ -216,6 +237,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Tecnología", {
+    reasonLabel: "Falla o requerimiento",
+    reasonPlaceholder: "Describe el problema o lo que se necesita",
     reservation: "Solicitud",
     reservations: "Solicitudes",
     newReservation: "Nueva solicitud",
@@ -232,6 +255,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Telecomunicaciones y técnicos", {
+    reasonLabel: "Falla o requerimiento",
+    reasonPlaceholder: "Describe la falla, la dirección o lo que se necesita",
     reservation: "Orden de servicio",
     reservations: "Órdenes de servicio",
     newReservation: "Nueva orden de servicio",
@@ -250,6 +275,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Taller automotriz", {
+    reasonLabel: "Falla o trabajo solicitado",
+    reasonPlaceholder: "Síntomas del vehículo o trabajo que se pide",
     reservation: "Orden de trabajo",
     reservations: "Órdenes de trabajo",
     newReservation: "Nueva orden de trabajo",
@@ -267,6 +294,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Mantenimiento y servicios del hogar", {
+    reasonLabel: "Falla o trabajo solicitado",
+    reasonPlaceholder: "Describe el problema o el trabajo que se necesita",
     reservation: "Orden de servicio",
     reservations: "Órdenes de servicio",
     newReservation: "Nueva orden de servicio",
@@ -284,6 +313,8 @@ const PROFILES: IndustryProfile[] = [
     ],
   }),
   profile("Veterinaria y mascotas", {
+    reasonLabel: "Motivo de la consulta",
+    reasonPlaceholder: "Nombre de la mascota, síntomas o lo que se va a consultar",
     reservation: "Cita",
     reservations: "Citas",
     newReservation: "Nueva cita",
@@ -421,6 +452,82 @@ const svc = (name: string, category: string, duration: string): SuggestedService
   category,
   duration,
 });
+
+
+const prod = (category: string, names: string[]): SuggestedProduct[] =>
+  names.map((name) => ({ name, category }));
+
+/** Productos sugeridos, por tipo de negocio específico o por sector. */
+const PRODUCT_SUGGESTIONS: Record<string, SuggestedProduct[]> = {
+  // Belleza y bienestar
+  "Belleza y bienestar": [
+    ...prod("Cuidado capilar", ["Shampoo profesional", "Acondicionador", "Tratamiento capilar", "Cera para peinar", "Gel fijador"]),
+    ...prod("Cuidado personal", ["Crema hidratante", "Aceite corporal"]),
+  ],
+  "Barbería": [
+    ...prod("Peinado", ["Cera para cabello", "Pomada", "Gel fijador", "Polvo texturizador"]),
+    ...prod("Barba", ["Aceite para barba", "Shampoo para barba", "Bálsamo para barba", "After shave"]),
+    ...prod("Insumos", ["Cuchillas de afeitar", "Talco", "Cuello desechable"]),
+  ],
+  "Salón de belleza": [
+    ...prod("Color", ["Tinte", "Decolorante", "Oxidante", "Matizador"]),
+    ...prod("Tratamientos", ["Shampoo profesional", "Acondicionador", "Tratamiento de keratina", "Ampolla capilar"]),
+    ...prod("Uñas", ["Esmalte", "Acetona"]),
+  ],
+  "Uñas y manicure": prod("Uñas", ["Esmalte semipermanente", "Acetona", "Limas", "Tips", "Gel constructor", "Aceite de cutícula", "Top coat", "Base coat"]),
+  "Spa": prod("Spa", ["Aceite de masaje", "Crema corporal", "Velas aromáticas", "Sales de baño", "Mascarilla facial", "Exfoliante corporal"]),
+  "Centro de masajes": prod("Masajes", ["Aceite de masaje", "Crema para masaje", "Toallas desechables", "Velas aromáticas"]),
+  // Salud
+  "Salud": prod("Insumos", ["Alcohol antiséptico", "Gasas", "Guantes desechables", "Tapabocas", "Termómetro", "Tensiómetro", "Jeringas", "Vendas"]),
+  "Odontología": prod("Higiene oral", ["Cepillo dental", "Crema dental", "Hilo dental", "Enjuague bucal", "Blanqueador dental", "Cepillos interdentales"]),
+  "Optometría": prod("Óptica", ["Estuche para lentes", "Líquido para lentes de contacto", "Paños de limpieza", "Cadena para gafas", "Montura"]),
+  // Droguería
+  "Droguería y farmacia": [
+    ...prod("Analgésicos", ["Acetaminofén 500 mg", "Ibuprofeno 400 mg"]),
+    ...prod("Gripa y alergia", ["Antigripal", "Jarabe para la tos"]),
+    ...prod("Primeros auxilios", ["Alcohol antiséptico", "Gasas", "Vendas", "Curitas", "Suero oral"]),
+    ...prod("Cuidado personal", ["Protector solar", "Crema hidratante", "Toallas higiénicas", "Pañales", "Tapabocas"]),
+    ...prod("Bienestar", ["Vitamina C", "Multivitamínico", "Termómetro"]),
+  ],
+  // Comercio
+  "Tienda de barrio o minimercado": [
+    ...prod("Despensa", ["Arroz 500 g", "Aceite", "Azúcar", "Sal", "Pasta", "Lentejas"]),
+    ...prod("Lácteos y huevos", ["Leche", "Huevos", "Queso"]),
+    ...prod("Bebidas", ["Gaseosa", "Agua", "Jugo", "Cerveza"]),
+    ...prod("Aseo", ["Papel higiénico", "Detergente", "Jabón de baño", "Cloro"]),
+  ],
+  "Ferretería": prod("Ferretería", ["Martillo", "Destornillador", "Cinta métrica", "Tornillos (caja)", "Pintura", "Brocha", "Cable eléctrico", "Candado"]),
+  "Papelería": prod("Papelería", ["Cuaderno", "Lapicero", "Lápiz", "Resma de papel", "Colores", "Pegante", "Carpeta", "Marcadores"]),
+  "Ropa y accesorios": prod("Ropa", ["Camiseta", "Jean", "Chaqueta", "Vestido", "Cinturón", "Gorra"]),
+  "Calzado": prod("Calzado", ["Tenis", "Sandalias", "Zapato formal", "Botas", "Medias"]),
+  "Tecnología y celulares": prod("Accesorios", ["Cargador", "Cable USB", "Audífonos", "Forro para celular", "Vidrio templado", "Memoria USB"]),
+  "Licorera": prod("Licores", ["Cerveza", "Aguardiente", "Ron", "Whisky", "Vino", "Hielo", "Gaseosa"]),
+  "Floristería": prod("Flores", ["Ramo de rosas", "Arreglo floral", "Planta de interior", "Globos", "Tarjeta"]),
+  "Tienda de mascotas": prod("Mascotas", ["Alimento para perro", "Alimento para gato", "Collar", "Correa", "Juguete", "Shampoo canino", "Antipulgas"]),
+  "Veterinaria y mascotas": prod("Mascotas", ["Alimento para perro", "Alimento para gato", "Antipulgas", "Shampoo canino", "Collar", "Correa"]),
+  // Restaurantes y alimentos
+  "Restaurante o cafetería": prod("Menú", ["Almuerzo del día", "Bandeja especial", "Sopa", "Jugo natural", "Gaseosa", "Agua", "Postre", "Café"]),
+  "Cafetería": prod("Cafetería", ["Café americano", "Capuchino", "Té", "Croissant", "Sándwich", "Torta por porción", "Jugo natural"]),
+  "Panadería y pastelería": prod("Panadería", ["Pan", "Croissant", "Torta", "Pastel", "Galletas", "Empanada", "Café"]),
+  // Automotriz
+  "Taller automotriz": prod("Repuestos e insumos", ["Aceite de motor", "Filtro de aceite", "Filtro de aire", "Pastillas de freno", "Bujías", "Limpiaparabrisas", "Líquido de frenos", "Refrigerante"]),
+  "Repuestos y autopartes": prod("Repuestos", ["Aceite de motor", "Filtro de aceite", "Pastillas de freno", "Bujías", "Batería", "Limpiaparabrisas"]),
+  // Deporte
+  "Gimnasio y deporte": prod("Tienda", ["Proteína", "Creatina", "Botella", "Guantes", "Toalla", "Bebida energética", "Barra de proteína"]),
+  // Tecnología y telecom
+  "Tecnología": prod("Equipos", ["Router", "Cable UTP", "Memoria USB", "Disco duro", "Mouse", "Teclado"]),
+  "Telecomunicaciones y técnicos": prod("Equipos", ["Router", "Cable UTP", "Conectores RJ45", "Cámara IP", "Fuente de poder", "Antena"]),
+  "Cámaras y seguridad electrónica": prod("Seguridad", ["Cámara IP", "DVR", "Disco duro", "Cable coaxial", "Fuente de poder", "Sensor de movimiento", "Cerradura eléctrica"]),
+  "Reparación de computadores y celulares": prod("Repuestos", ["Pantalla", "Batería", "Cargador", "Memoria RAM", "Disco SSD", "Pasta térmica"]),
+  // Hogar
+  "Mantenimiento y servicios del hogar": prod("Materiales", ["Silicona", "Cinta teflón", "Cable eléctrico", "Tomacorriente", "Bombillo LED", "Candado"]),
+  // Hotelería
+  "Hotelería y turismo": prod("Minibar", ["Agua", "Gaseosa", "Snacks", "Cerveza", "Souvenir"]),
+  // Educación
+  "Educación y formación": prod("Material", ["Cuaderno", "Libro", "Uniforme", "Kit de materiales", "Carnet"]),
+  // Agropecuario
+  "Agropecuario": prod("Insumos", ["Semillas", "Fertilizante", "Concentrado", "Abono orgánico", "Herramientas de campo"]),
+};
 
 /** Sectores y tipos de negocio que se pueden elegir. */
 export const TYPE_GROUPS: TypeGroup[] = [
@@ -886,13 +993,29 @@ export function getIndustryProfile(type: string | null | undefined): IndustryPro
     if (found) {
       const base = PROFILES.find((item) => item.type === group.base) ?? FALLBACK;
 
-      return { ...base, ...found.overrides, type: found.label };
+      return {
+        ...base,
+        ...found.overrides,
+        suggestedProducts:
+          found.overrides?.suggestedProducts ??
+          PRODUCT_SUGGESTIONS[found.label] ??
+          PRODUCT_SUGGESTIONS[group.base] ??
+          [],
+        type: found.label,
+      };
     }
   }
 
   const sector = PROFILES.find((item) => sameText(item.type, type));
 
-  return sector ?? { ...FALLBACK, type };
+  if (sector) {
+    return {
+      ...sector,
+      suggestedProducts: PRODUCT_SUGGESTIONS[sector.type] ?? [],
+    };
+  }
+
+  return { ...FALLBACK, type };
 }
 
 /** Perfil del negocio activo. */

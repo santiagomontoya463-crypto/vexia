@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { lower, useIndustry } from "../../lib/industry";
+import CatalogPicker from "../../components/CatalogPicker";
 
 type ServiceStatus = "Activo" | "Inactivo";
 
@@ -70,6 +71,7 @@ function formatCurrency(value: number) {
 
 export default function ServicesPage() {
   const industry = useIndustry();
+  const [showCatalog, setShowCatalog] = useState(false);
   const [services, setServices] = useState<Service[]>(defaultServices);
 
   const [search, setSearch] = useState("");
@@ -92,13 +94,18 @@ export default function ServicesPage() {
 
   const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    setServices(loadServices());
-  }, []);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
 
   useEffect(() => {
-    saveServices(services);
-  }, [services]);
+    setServices(loadServices());
+    setServicesLoaded(true);
+  }, []);
+
+  // Solo se guarda cuando ya se cargó lo existente; si no, la lista vacía
+  // inicial borraría los servicios guardados.
+  useEffect(() => {
+    if (servicesLoaded) saveServices(services);
+  }, [services, servicesLoaded]);
 
   const filteredServices = useMemo(() => {
     return services.filter((service) => {
@@ -308,13 +315,25 @@ export default function ServicesPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openNewService}
-            className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            + {industry.newService}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            {industry.suggestedServices.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCatalog(true)}
+                className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-800 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              >
+                Catálogo sugerido
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={openNewService}
+              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              + {industry.newService}
+            </button>
+          </div>
         </div>
 
         <datalist id="stian-categorias">
@@ -819,6 +838,43 @@ export default function ServicesPage() {
             </div>
           </div>
         </div>
+      )}
+      {showCatalog && (
+        <CatalogPicker
+          title={`Catálogo sugerido de ${lower(industry.services)}`}
+          description={`Marca los que ofreces en tu negocio y ponles el precio. Los que no estén en la lista los creas a mano con «${industry.newService}».`}
+          items={industry.suggestedServices.map((item) => ({
+            name: item.name,
+            category: item.category,
+            detail: item.duration,
+          }))}
+          existingNames={services.map((item) => item.name)}
+          priceLabel="Precio"
+          confirmLabel="Agregar seleccionados"
+          onClose={() => setShowCatalog(false)}
+          onConfirm={(selection) => {
+            const now = new Date().toISOString();
+
+            setServices((current) => [
+              ...current,
+              ...selection.map(
+                ({ item, price }): Service => ({
+                  id: crypto.randomUUID(),
+                  name: item.name,
+                  category: item.category,
+                  description: "",
+                  duration: item.detail ?? "30 min",
+                  price,
+                  status: "Activo",
+                  createdAt: now,
+                  updatedAt: now,
+                }),
+              ),
+            ]);
+
+            setShowCatalog(false);
+          }}
+        />
       )}
     </main>
   );

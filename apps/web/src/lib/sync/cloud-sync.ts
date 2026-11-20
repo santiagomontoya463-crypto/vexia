@@ -44,6 +44,7 @@ type ParsedValue = {
 };
 
 const TABLE = "business_records";
+const PENDING_KEY = "stian:sync-pending";
 const ORDER_ID = "_order";
 const VALUE_ID = "_value";
 const PUSH_DELAY_MS = 600;
@@ -69,6 +70,43 @@ let lastMessage: string | null = null;
 
 let rawSetItem: ((key: string, value: string) => void) | null = null;
 let rawRemoveItem: ((key: string) => void) | null = null;
+
+/** Guarda en el navegador qué claves quedaron sin enviar, para no perderlas. */
+function persistPending() {
+  try {
+    if (dirty.size === 0 || !businessId) {
+      window.localStorage.removeItem(PENDING_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify({ businessId, keys: [...dirty] }),
+    );
+  } catch {
+    // Sin almacenamiento local no se puede recordar lo pendiente.
+  }
+}
+
+function readPending(bid: string): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(PENDING_KEY);
+
+    if (!raw) return new Set();
+
+    const parsed = JSON.parse(raw) as { businessId?: string; keys?: string[] };
+
+    if (parsed.businessId !== bid || !Array.isArray(parsed.keys)) {
+      // Pendientes de otra empresa: esos datos locales ya no existen, se descartan.
+      window.localStorage.removeItem(PENDING_KEY);
+      return new Set();
+    }
+
+    return new Set(parsed.keys.filter((key) => isSyncKey(key)));
+  } catch {
+    return new Set();
+  }
+}
 
 function isSyncKey(key: string): boolean {
   return (SYNC_KEYS as readonly string[]).includes(key);
@@ -233,6 +271,8 @@ async function doPush() {
     }
   }
 
+  persistPending();
+
   if (failure) {
     setStatus("error", failure);
 
@@ -283,6 +323,7 @@ function onLocalChange(key: string) {
   if (!active || hydrating || !isSyncKey(key)) return;
 
   dirty.add(key);
+  persistPending();
   schedulePush();
 }
 
@@ -370,7 +411,6 @@ export async function stopSync(options?: { clearLocal?: boolean }) {
   active = false;
   supabase = null;
   businessId = null;
-  dirty.clear();
   snapshots.clear();
   orders.clear();
 
@@ -379,7 +419,21 @@ export async function stopSync(options?: { clearLocal?: boolean }) {
     retryTimer = null;
   }
 
-  if (options?.clearLocal) clearLocalData();
+  if (!options?.clearLocal) {
+    // Lo que no alcanzó a enviarse queda recordado en dirty/pendiente.
+    dirty.clear();
+  }
+
+  if (options?.clearLocal) {
+    clearLocalData();
+    dirty.clear();
+
+    try {
+      window.localStorage.removeItem(PENDING_KEY);
+    } catch {
+      // Nada que limpiar.
+    }
+  }
 
   setStatus("idle");
 }
@@ -389,6 +443,8 @@ export async function startSync(client: SupabaseClient, bid: string) {
   patchStorage();
 
   await stopSync();
+
+  const pendingKeys = readPending(bid);
 
   supabase = client;
   businessId = bid;
@@ -430,30 +486,49 @@ export async function startSync(client: SupabaseClient, bid: string) {
 
     for (const key of SYNC_KEYS) {
       const group = groups.get(collectionOf(key));
+      const keepLocal = pendingKeys.has(key);
 
-      // Lo que no está en la nube no existe para esta empresa: se descarta lo local.
-      if (!group) {
+      // Texto que tendría esta clave según la nube.
+      let cloudText: string | null = null;
+
+      if (group) {
+        if (group.hasValue) {
+          cloudText = JSON.stringify(group.value);
+        } else {
+          const known = new Set(group.records.keys());
+          const ids = (group.order ?? []).filter((id) => known.has(id));
+          const listed = new Set(ids);
+
+          [...group.records.entries()]
+            .filter(([id]) => !listed.has(id))
+            .sort((a, b) => a[1].createdAt.localeCompare(b[1].createdAt))
+            .forEach(([id]) => ids.push(id));
+
+          cloudText = JSON.stringify(ids.map((id) => group.records.get(id)?.data));
+        }
+      }
+
+      if (keepLocal) {
+        // Había cambios sin enviar de la sesión anterior: se conservan y se
+        // envían, tomando como referencia lo que hay en la nube.
+        const parsedCloud = parseValue(cloudText);
+
+        if (parsedCloud) {
+          snapshots.set(key, parsedCloud.records);
+          if (parsedCloud.isArray) orders.set(key, JSON.stringify(parsedCloud.order));
+        }
+
+        dirty.add(key);
+        continue;
+      }
+
+      if (cloudText === null) {
+        // Lo que no está en la nube no existe para esta empresa.
         if (rawRemoveItem) rawRemoveItem(key);
         continue;
       }
 
-      if (group.hasValue) {
-        rawSetItem?.(key, JSON.stringify(group.value));
-      } else {
-        const known = new Set(group.records.keys());
-        const ids = (group.order ?? []).filter((id) => known.has(id));
-        const listed = new Set(ids);
-
-        [...group.records.entries()]
-          .filter(([id]) => !listed.has(id))
-          .sort((a, b) => a[1].createdAt.localeCompare(b[1].createdAt))
-          .forEach(([id]) => ids.push(id));
-
-        rawSetItem?.(
-          key,
-          JSON.stringify(ids.map((id) => group.records.get(id)?.data)),
-        );
-      }
+      rawSetItem?.(key, cloudText);
 
       const parsed = parseValue(window.localStorage.getItem(key));
 
@@ -464,6 +539,11 @@ export async function startSync(client: SupabaseClient, bid: string) {
     }
 
     active = true;
+
+    if (dirty.size > 0) {
+      persistPending();
+      schedulePush();
+    }
   } catch (error) {
     supabase = null;
     businessId = null;

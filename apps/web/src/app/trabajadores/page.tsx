@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ROLE_LABELS, useAuth } from "../../lib/auth/AuthProvider";
+import AddMemberForm from "../../components/team/AddMemberForm";
 import {
   readStoredList,
   usePersistentList,
@@ -25,6 +28,16 @@ type Worker = {
 };
 
 type StoredService = { name?: string; status?: string };
+
+const SCHEDULE_PRESETS = [
+  "Lun — Sáb · 8:00 AM — 6:00 PM",
+  "Lun — Vie · 8:00 AM — 5:00 PM",
+  "Mar — Sáb · 9:00 AM — 7:00 PM",
+  "Fines de semana · 9:00 AM — 6:00 PM",
+  "Turnos rotativos",
+];
+
+const CUSTOM_SCHEDULE = "Horario personalizado";
 
 /** Lista desplegable con casillas para elegir varios elementos. */
 function MultiSelect({
@@ -118,8 +131,43 @@ function MultiSelect({
   );
 }
 
+type TeamMember = { email: string | null; role: keyof typeof ROLE_LABELS; status: string };
+
 export default function WorkersPage() {
   const industry = useIndustry();
+  const { supabase, activeMembership } = useAuth();
+  const myRole = activeMembership?.role;
+  const canManageAccess = myRole === "owner" || myRole === "admin";
+  const [grantAccess, setGrantAccess] = useState(false);
+  const [accessTarget, setAccessTarget] = useState<{ name: string; email: string } | null>(null);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+
+  const businessId = activeMembership?.business.id;
+
+  const loadTeam = async () => {
+    if (!supabase || !businessId) return;
+
+    const { data } = await supabase.rpc("list_business_team", {
+      p_business: businessId,
+    });
+
+    setTeam((data as TeamMember[] | null) ?? []);
+  };
+
+  useEffect(() => {
+    void loadTeam();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, businessId]);
+
+  const accessOf = (workerEmail: string) => {
+    const found = team.find(
+      (member) => (member.email ?? "").toLowerCase() === workerEmail.trim().toLowerCase(),
+    );
+
+    if (!found) return null;
+
+    return `${ROLE_LABELS[found.role]} · ${found.status === "active" ? "activo" : "desactivado"}`;
+  };
   const [workers, setWorkers] = usePersistentList<Worker>("stian:workers");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Todos");
@@ -133,7 +181,9 @@ export default function WorkersPage() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState(industry.workerRoles[0]);
   const [services, setServices] = useState<string[]>([]);
-  const [schedule, setSchedule] = useState("Lun — Sáb · 8:00 AM — 6:00 PM");
+  const [schedule, setSchedule] = useState(SCHEDULE_PRESETS[0]);
+  const [customSchedule, setCustomSchedule] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const serviceOptions = useMemo(
     () =>
@@ -192,10 +242,90 @@ export default function WorkersPage() {
     );
   };
 
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setRole(industry.workerRoles[0]);
+    setServices([]);
+    setSchedule(SCHEDULE_PRESETS[0]);
+    setCustomSchedule("");
+    setEditingId(null);
+    setGrantAccess(false);
+  };
+
+  const openNewForm = () => {
+    resetForm();
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const closeForm = () => {
+    resetForm();
+    setShowForm(false);
+  };
+
+  const startEdit = (worker: Worker) => {
+    setName(worker.name);
+    setEmail(worker.email);
+    setPhone(worker.phone === "Sin teléfono" ? "" : worker.phone);
+    setRole(worker.role);
+    setServices(worker.services.filter((item) => item !== "Sin servicios"));
+
+    if (SCHEDULE_PRESETS.includes(worker.schedule)) {
+      setSchedule(worker.schedule);
+      setCustomSchedule("");
+    } else {
+      setSchedule(CUSTOM_SCHEDULE);
+      setCustomSchedule(worker.schedule);
+    }
+
+    setEditingId(worker.id);
+    setSelectedWorker(null);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const createWorker = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!name.trim() || !email.trim()) return;
+
+    const finalSchedule =
+      schedule === CUSTOM_SCHEDULE
+        ? customSchedule.trim() || CUSTOM_SCHEDULE
+        : schedule;
+
+    const initials = name
+      .trim()
+      .split(" ")
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase();
+
+    if (editingId !== null) {
+      setWorkers((current) =>
+        current.map((worker) =>
+          worker.id === editingId
+            ? {
+                ...worker,
+                name: name.trim(),
+                email: email.trim(),
+                phone: phone.trim() || "Sin teléfono",
+                role,
+                services,
+                schedule: finalSchedule,
+                initials,
+                lastActivity: "Actualizado ahora",
+              }
+            : worker,
+        ),
+      );
+
+      closeForm();
+      return;
+    }
 
     const newWorker: Worker = {
       id: Date.now(),
@@ -204,29 +334,22 @@ export default function WorkersPage() {
       phone: phone.trim() || "Sin teléfono",
       role,
       status: "Pendiente",
-      services: services.length ? services : ["Sin servicios"],
-      schedule,
+      services,
+      schedule: finalSchedule,
       reservations: 0,
-      initials: name
-        .trim()
-        .split(" ")
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join("")
-        .toUpperCase(),
+      initials,
       color:
         "bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300",
       lastActivity: "Creado ahora",
     };
 
+    const wantsAccess = grantAccess && canManageAccess;
+    const target = { name: name.trim(), email: email.trim() };
+
     setWorkers((current) => [newWorker, ...current]);
-    setName("");
-    setEmail("");
-    setPhone("");
-    setRole(industry.workerRoles[0]);
-    setServices([]);
-    setSchedule("Lun — Sáb · 8:00 AM — 6:00 PM");
-    setShowForm(false);
+    closeForm();
+
+    if (wantsAccess) setAccessTarget(target);
   };
 
   const toggleStatus = (id: number) => {
@@ -267,7 +390,7 @@ export default function WorkersPage() {
 
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={openNewForm}
             className="cursor-pointer rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >
             + {industry.addWorker}
@@ -311,16 +434,19 @@ export default function WorkersPage() {
           <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold">{industry.newWorker}</h2>
+                <h2 className="text-lg font-bold">
+                  {editingId !== null ? "Editar ficha" : industry.newWorker}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Registra la información básica y prepara su acceso al
-                  negocio.
+                  {editingId !== null
+                    ? "Cambia sus datos, el cargo, el horario y lo que puede realizar."
+                    : "Registra la información básica. El acceso a la aplicación se da en Equipo y accesos."}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={closeForm}
                 className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Cerrar
@@ -379,11 +505,20 @@ export default function WorkersPage() {
                     onChange={(event) => setSchedule(event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950"
                   >
-                    <option>Lun — Sáb · 8:00 AM — 6:00 PM</option>
-                    <option>Lun — Vie · 8:00 AM — 5:00 PM</option>
-                    <option>Mar — Sáb · 9:00 AM — 7:00 PM</option>
-                    <option>Horario personalizado</option>
+                    {SCHEDULE_PRESETS.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                    <option>{CUSTOM_SCHEDULE}</option>
                   </select>
+
+                  {schedule === CUSTOM_SCHEDULE && (
+                    <input
+                      value={customSchedule}
+                      onChange={(event) => setCustomSchedule(event.target.value)}
+                      placeholder="Ej. Lun, Mié y Vie · 2:00 PM — 8:00 PM"
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -401,10 +536,28 @@ export default function WorkersPage() {
                 />
               </div>
 
+              {editingId === null && canManageAccess && (
+                <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={grantAccess}
+                    onChange={(event) => setGrantAccess(event.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <strong>Darle acceso a la aplicación</strong>
+                    <span className="mt-0.5 block text-slate-500 dark:text-slate-400">
+                      Al guardar podrás crear su usuario con una contraseña
+                      temporal o invitarlo por correo.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={closeForm}
                   className="cursor-pointer rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   Cancelar
@@ -414,7 +567,9 @@ export default function WorkersPage() {
                   type="submit"
                   className="cursor-pointer rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
-                  Crear {lower(industry.worker)}
+                  {editingId !== null
+                    ? "Guardar cambios"
+                    : `Crear ${lower(industry.worker)}`}
                 </button>
               </div>
             </form>
@@ -509,6 +664,7 @@ export default function WorkersPage() {
                 key={worker.id}
                 worker={worker}
                 onSelect={() => setSelectedWorker(worker)}
+                onEdit={() => startEdit(worker)}
                 onToggleStatus={() => toggleStatus(worker.id)}
               />
             ))}
@@ -592,6 +748,13 @@ export default function WorkersPage() {
                         >
                           Ver perfil
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(worker)}
+                          className="ml-4 cursor-pointer text-sm font-semibold hover:underline"
+                        >
+                          Editar
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -651,13 +814,22 @@ export default function WorkersPage() {
                 label="Estado"
                 value={selectedWorker.status}
               />
+              <Detail
+                label="Acceso a la aplicación"
+                value={accessOf(selectedWorker.email) ?? "Sin acceso"}
+              />
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
               <h3 className="font-semibold">Servicios asignados</h3>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {selectedWorker.services.map((service) => (
+                {selectedWorker.services.filter((item) => item !== "Sin servicios").length === 0 && (
+                  <span className="text-sm text-slate-500">
+                    Aún no tiene {lower(industry.services)} asignados.
+                  </span>
+                )}
+                {selectedWorker.services.filter((item) => item !== "Sin servicios").map((service) => (
                   <span
                     key={service}
                     className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold dark:bg-slate-800"
@@ -669,17 +841,53 @@ export default function WorkersPage() {
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
-              <h3 className="font-semibold">Próximas funciones</h3>
+              <h3 className="font-semibold">Gestionar</h3>
 
               <div className="mt-4 space-y-3">
-                <ActionRow icon="📅" title="Ver agenda del trabajador" />
-                <ActionRow icon="✂️" title="Administrar servicios asignados" />
-                <ActionRow icon="🔐" title="Administrar permisos" />
-                <ActionRow icon="◷" title="Configurar horario y disponibilidad" />
+                <ActionRow
+                  icon="✎"
+                  title="Editar datos, cargo y horario"
+                  onClick={() => startEdit(selectedWorker)}
+                />
+                <ActionRow
+                  icon="✳"
+                  title={`Asignar ${lower(industry.services)}`}
+                  onClick={() => startEdit(selectedWorker)}
+                />
+                <ActionRow
+                  icon="📅"
+                  title="Ver agenda"
+                  href="/reservas"
+                />
+                {canManageAccess && !accessOf(selectedWorker.email) && (
+                  <ActionRow
+                    icon="🔑"
+                    title="Dar acceso a la aplicación"
+                    onClick={() =>
+                      setAccessTarget({
+                        name: selectedWorker.name,
+                        email: selectedWorker.email,
+                      })
+                    }
+                  />
+                )}
+                <ActionRow
+                  icon="🔐"
+                  title="Equipo, roles y permisos"
+                  href="/equipo"
+                />
               </div>
             </div>
 
             <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => startEdit(selectedWorker)}
+                className="cursor-pointer rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold dark:border-slate-700"
+              >
+                Editar
+              </button>
+
               <button
                 type="button"
                 onClick={() => toggleStatus(selectedWorker.id)}
@@ -698,6 +906,39 @@ export default function WorkersPage() {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {accessTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setAccessTarget(null)}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold">Acceso a la aplicación</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {accessTarget.name} podrá entrar a STIAN con su propio usuario.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAccessTarget(null)}
+                className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <AddMemberForm
+              defaultName={accessTarget.name}
+              defaultEmail={accessTarget.email}
+              onDone={() => void loadTeam()}
+            />
           </div>
         </div>
       )}
@@ -752,10 +993,12 @@ function Metric({
 function WorkerCard({
   worker,
   onSelect,
+  onEdit,
   onToggleStatus,
 }: {
   worker: Worker;
   onSelect: () => void;
+  onEdit: () => void;
   onToggleStatus: () => void;
 }) {
   return (
@@ -797,7 +1040,10 @@ function WorkerCard({
         </p>
 
         <div className="flex flex-wrap gap-1.5">
-          {worker.services.map((service) => (
+          {worker.services.filter((item) => item !== "Sin servicios").length === 0 && (
+            <span className="text-xs text-slate-400">Sin asignar todavía</span>
+          )}
+          {worker.services.filter((item) => item !== "Sin servicios").map((service) => (
             <span
               key={service}
               className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
@@ -815,6 +1061,14 @@ function WorkerCard({
           className="flex-1 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
         >
           Ver perfil
+        </button>
+
+        <button
+          type="button"
+          onClick={onEdit}
+          className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          Editar
         </button>
 
         <button
@@ -940,26 +1194,40 @@ function Detail({
 function ActionRow({
   icon,
   title,
+  onClick,
+  href,
 }: {
   icon: string;
   title: string;
+  onClick?: () => void;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
-    >
+  const className =
+    "flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800";
+
+  const content = (
+    <>
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm dark:bg-slate-800">
         {icon}
       </span>
 
-      <span className="text-sm font-semibold">
-        {title}
-      </span>
+      <span className="text-sm font-semibold">{title}</span>
 
-      <span className="ml-auto text-slate-400">
-        →
-      </span>
+      <span className="ml-auto text-slate-400">→</span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
     </button>
   );
 }
