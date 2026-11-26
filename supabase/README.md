@@ -10,7 +10,9 @@ Los archivos de `migrations/` se ejecutan en orden en el **SQL Editor** de Supab
 5. `0005_acceso.sql`: la lista del equipo indica qué usuarios fueron creados con contraseña temporal.
 6. `0006_roles.sql`: el propietario puede asignar cualquier rol.
 7. `0007_master.sql`: panel Master completo (pagos, métricas, auditoría, administradores).
-11. `0011_cobros.sql`: cuentas de cobro de la plataforma y solicitudes de pago de suscripción (la empresa reporta, el Master aprueba).
+8. `0008_master_control.sql`: control total del Master (cobros, usuarios, avisos, respaldos).
+9. `0009_suscripcion.sql`: las empresas ven su plan, avisan su pago y el Master lo confirma.
+10. `0010_prospectos.sql`: lista de cuentas por inscribir del Master.
 
 ## Convertirte en propietario de la plataforma (Master)
 
