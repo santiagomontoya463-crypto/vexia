@@ -45,7 +45,7 @@ const menuSections = [
       { name: "Proveedores", href: "/proveedores", icon: "▤" },
       { name: "Mi negocio", href: "/negocio", icon: "◇" },
       { name: "Equipo y accesos", href: "/equipo", icon: "☺" },
-      { name: "Suscripción", href: "/suscripcion", icon: "◈" },
+      { name: "Suscripción", href: "/suscripcion", icon: "★" },
     ],
   },
   {

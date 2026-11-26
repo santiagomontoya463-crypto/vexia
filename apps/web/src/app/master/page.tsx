@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth/AuthProvider";
-import AccountsTab from "../../components/master/AccountsTab";
 import AdminsTab from "../../components/master/AdminsTab";
 import AuditTab from "../../components/master/AuditTab";
 import BusinessDetailModal from "../../components/master/BusinessDetailModal";
 import BusinessesTab from "../../components/master/BusinessesTab";
+import CollectionsTab, { type PaymentRequest } from "../../components/master/CollectionsTab";
+import CreateBusinessModal, { type CreatePrefill } from "../../components/master/CreateBusinessModal";
 import OverviewTab from "../../components/master/OverviewTab";
 import PaymentModal from "../../components/master/PaymentModal";
 import PaymentsTab from "../../components/master/PaymentsTab";
 import PlansTab from "../../components/master/PlansTab";
-import RequestsTab from "../../components/master/RequestsTab";
+import ProspectsTab, { type Prospect } from "../../components/master/ProspectsTab";
 import SettingsTab from "../../components/master/SettingsTab";
 import type {
   MasterBusiness,
@@ -24,10 +25,10 @@ import { effectiveState } from "../../components/master/shared";
 type Tab =
   | "resumen"
   | "empresas"
+  | "inscribir"
+  | "cobros"
   | "pagos"
-  | "solicitudes"
   | "planes"
-  | "cuentas"
   | "auditoria"
   | "admins"
   | "ajustes";
@@ -39,14 +40,19 @@ export default function MasterPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [businesses, setBusinesses] = useState<MasterBusiness[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [requests, setRequests] = useState<PaymentRequest[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [missingProspects, setMissingProspects] = useState(false);
   const [trialDays, setTrialDays] = useState("3");
+  const [instructions, setInstructions] = useState("");
+  const [support, setSupport] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [paymentFor, setPaymentFor] = useState<string | null | undefined>(undefined);
   const [paymentsKey, setPaymentsKey] = useState(0);
   const [detail, setDetail] = useState<MasterBusiness | null>(null);
-  const [pendingRequests, setPendingRequests] = useState(0);
+  const [creating, setCreating] = useState<CreatePrefill | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!supabase) return;
@@ -60,19 +66,20 @@ export default function MasterPage() {
       plansResult,
       settingsResult,
       requestsResult,
-    ] =
-      await Promise.all([
-        supabase.rpc("master_overview"),
-        supabase.rpc("master_list_businesses"),
-        supabase.rpc("master_metrics"),
-        supabase.from("plans").select("*").order("sort_order"),
-        supabase.from("platform_settings").select("value").eq("key", "trial_days").maybeSingle(),
-        supabase.rpc("master_list_requests", { p_status: "pending" }),
-      ]);
+      prospectsResult,
+    ] = await Promise.all([
+      supabase.rpc("master_overview"),
+      supabase.rpc("master_list_businesses"),
+      supabase.rpc("master_metrics"),
+      supabase.from("plans").select("*").order("sort_order"),
+      supabase.from("platform_settings").select("key, value"),
+      supabase.rpc("master_list_payment_requests", { p_status: "pending" }),
+      supabase.from("business_prospects").select("*").order("created_at", { ascending: false }),
+    ]);
 
     if (overviewResult.error || businessesResult.error) {
       setError(
-        "No fue posible cargar los datos del panel. ¿Ya ejecutaste la migración 0007_master.sql en Supabase y tu usuario es administrador?",
+        "No fue posible cargar los datos del panel. Revisa que hayas ejecutado las migraciones de Supabase (0007 a 0010) y que tu usuario sea administrador de la plataforma.",
       );
     }
 
@@ -80,11 +87,16 @@ export default function MasterPage() {
     setBusinesses((businessesResult.data as MasterBusiness[] | null) ?? []);
     setMetrics((metricsResult.data as Metrics | null) ?? null);
     setPlans((plansResult.data as Plan[] | null) ?? []);
+    setRequests((requestsResult.data as PaymentRequest[] | null) ?? []);
+    setMissingProspects(Boolean(prospectsResult.error));
+    setProspects((prospectsResult.data as Prospect[] | null) ?? []);
 
-    if (settingsResult.data) setTrialDays(String(settingsResult.data.value));
+    const settings = (settingsResult.data ?? []) as { key: string; value: unknown }[];
+    const read = (key: string) => settings.find((item) => item.key === key)?.value;
 
-    // Si la migración 0011 aún no se ejecutó, simplemente no hay solicitudes que contar.
-    setPendingRequests(Array.isArray(requestsResult.data) ? requestsResult.data.length : 0);
+    if (read("trial_days") !== undefined) setTrialDays(String(read("trial_days")));
+    setInstructions(String(read("payment_instructions") ?? ""));
+    setSupport(String(read("support_contact") ?? ""));
 
     setLoading(false);
   }, [supabase]);
@@ -95,7 +107,7 @@ export default function MasterPage() {
 
   const flash = useCallback((text: string) => {
     setMessage(text);
-    window.setTimeout(() => setMessage(""), 6000);
+    window.setTimeout(() => setMessage(""), 7000);
   }, []);
 
   async function extendTrial(business: MasterBusiness) {
@@ -163,13 +175,15 @@ export default function MasterPage() {
     return state === "trial_expired" || state === "subscription_expired";
   }).length;
 
+  const readyToEnroll = prospects.filter((item) => item.status === "ready").length;
+
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "resumen", label: "Resumen" },
     { id: "empresas", label: "Empresas", badge: expired },
+    { id: "inscribir", label: "Por inscribir", badge: readyToEnroll },
+    { id: "cobros", label: "Cobros", badge: requests.length },
     { id: "pagos", label: "Pagos" },
-    { id: "solicitudes", label: "Solicitudes de pago", badge: pendingRequests },
     { id: "planes", label: "Planes" },
-    { id: "cuentas", label: "Cuentas de cobro" },
     { id: "auditoria", label: "Auditoría" },
     { id: "admins", label: "Administradores" },
     { id: "ajustes", label: "Ajustes" },
@@ -178,14 +192,24 @@ export default function MasterPage() {
   return (
     <main className="min-h-screen bg-[#f5f6fc] text-slate-900 dark:bg-[#080d19] dark:text-slate-100">
       <header className="border-b border-slate-200/80 bg-white/75 px-5 py-5 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0b1220]/80 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-[1500px]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">
-            Propietario de la plataforma
-          </p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Panel Master</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Controla empresas, pagos, planes, equipo y actividad de toda la plataforma.
-          </p>
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">
+              Propietario de la plataforma
+            </p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Panel Master</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Inscribe cuentas, cobra, y controla empresas, planes, equipo y actividad.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCreating({})}
+            className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-500/20"
+          >
+            + Inscribir empresa
+          </button>
         </div>
       </header>
 
@@ -246,6 +270,35 @@ export default function MasterPage() {
             onChanged={loadAll}
             onPayment={(id) => setPaymentFor(id)}
             onExtend={(business) => void extendTrial(business)}
+            onCreate={() => setCreating({})}
+            flash={flash}
+            setError={setError}
+          />
+        )}
+
+        {tab === "inscribir" && (
+          <ProspectsTab
+            prospects={prospects}
+            missingTable={missingProspects}
+            plans={plans}
+            onChanged={loadAll}
+            onEnroll={(prefill) => setCreating(prefill)}
+            flash={flash}
+            setError={setError}
+          />
+        )}
+
+        {tab === "cobros" && (
+          <CollectionsTab
+            businesses={businesses}
+            plans={plans}
+            requests={requests}
+            overview={overview}
+            onChanged={async () => {
+              setPaymentsKey((value) => value + 1);
+              await loadAll();
+            }}
+            onPayment={(id) => setPaymentFor(id)}
             flash={flash}
             setError={setError}
           />
@@ -264,18 +317,18 @@ export default function MasterPage() {
           <PlansTab plans={plans} onChanged={loadAll} flash={flash} setError={setError} />
         )}
 
-        {tab === "solicitudes" && (
-          <RequestsTab flash={flash} setError={setError} onChanged={loadAll} />
-        )}
-
-        {tab === "cuentas" && <AccountsTab flash={flash} setError={setError} />}
-
         {tab === "auditoria" && <AuditTab businesses={businesses} setError={setError} />}
 
         {tab === "admins" && <AdminsTab flash={flash} setError={setError} />}
 
         {tab === "ajustes" && (
-          <SettingsTab initialTrialDays={trialDays} flash={flash} setError={setError} />
+          <SettingsTab
+            initialTrialDays={trialDays}
+            initialInstructions={instructions}
+            initialSupport={support}
+            flash={flash}
+            setError={setError}
+          />
         )}
       </div>
 
@@ -291,6 +344,16 @@ export default function MasterPage() {
             flash(text);
             void loadAll();
           }}
+        />
+      )}
+
+      {creating && (
+        <CreateBusinessModal
+          plans={plans}
+          trialDays={trialDays}
+          prefill={creating}
+          onClose={() => setCreating(null)}
+          onCreated={() => void loadAll()}
         />
       )}
 

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../lib/auth/AuthProvider";
 import { canAccessPath } from "../lib/access";
+import Link from "next/link";
 import InvitationsBanner from "./InvitationsBanner";
+import SubscriptionBanner from "./SubscriptionBanner";
 
 // Páginas abiertas, sin menú lateral ni sesión obligatoria.
 const PUBLIC_ROUTES = ["/", "/login", "/registro", "/recuperar", "/restablecer"];
@@ -168,47 +169,33 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  // Una empresa con la prueba o la suscripción vencida todavía puede entrar a
-  // «Suscripción» para pagar y reactivarse.
-  if (blockedReason && pathname === "/suscripcion") {
-    return (
-      <div className="min-h-screen bg-[#f5f6fc] text-slate-900 dark:bg-[#080d19] dark:text-slate-100">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-5 pt-5 sm:px-8">
-          <p className="text-sm text-slate-500 dark:text-slate-400">{blockedReason}</p>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-white/15"
-          >
-            Cerrar sesión
-          </button>
-        </div>
-        {children}
-      </div>
-    );
-  }
-
-  if (blockedReason && pathname !== "/master") {
-    const businessStatus = activeMembership?.business.status;
-    const canPay = businessStatus === "trial" || businessStatus === "active";
+  if (blockedReason && pathname !== "/master" && pathname !== "/suscripcion") {
+    const canPay =
+      activeMembership?.role === "owner" || activeMembership?.role === "admin";
 
     return (
       <FullScreenMessage>
-        <p className="font-bold">Acceso suspendido</p>
+        <p className="font-bold">Tu acceso está en pausa</p>
         <p className="mt-2 text-slate-500">{blockedReason}</p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {canPay && (
-            <Link
-              href="/suscripcion"
-              className="rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white"
-            >
-              Renovar suscripción
-            </Link>
-          )}
+
+        {canPay ? (
+          <Link
+            href="/suscripcion"
+            className="mt-5 inline-block rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 font-semibold text-white"
+          >
+            Ver planes y pagar
+          </Link>
+        ) : (
+          <p className="mt-4 text-xs text-slate-500">
+            Pídele al propietario o a un administrador que renueve la suscripción.
+          </p>
+        )}
+
+        <div className="mt-4">
           <button
             type="button"
             onClick={() => void signOut()}
-            className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white"
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold"
           >
             Cerrar sesión
           </button>
@@ -260,6 +247,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="px-5 pt-5 sm:px-8 lg:px-10 empty:hidden">
+          <SubscriptionBanner />
           <InvitationsBanner />
         </div>
 

@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     p_business: businessId,
   });
 
-  if (!operational) {
+  if (!operational && !caller.platform) {
     return reply({ ok: false, error: "La empresa no está activa." }, 403);
   }
 
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     .eq("id", businessId)
     .maybeSingle();
 
-  if (business?.plan_id) {
+  if (business?.plan_id && !caller.platform) {
     const { data: plan } = await supabase
       .from("plans")
       .select("max_users")

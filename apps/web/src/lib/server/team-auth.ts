@@ -89,7 +89,34 @@ export type Caller = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
   role: "owner" | "admin";
+  /** Verdadero si quien llama es administrador de la plataforma (Master). */
+  platform: boolean;
 };
+
+/** Verifica que quien llama sea administrador de la plataforma. */
+export async function authorizePlatformAdmin(): Promise<
+  { supabase: Awaited<ReturnType<typeof createClient>>; userId: string } | Response
+> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+
+  if (!user) {
+    return reply({ ok: false, error: "Debes iniciar sesión." }, 401);
+  }
+
+  const { data: admin } = await supabase
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!admin) {
+    return reply({ ok: false, error: "Solo el administrador de la plataforma puede hacer esto." }, 403);
+  }
+
+  return { supabase, userId: user.id };
+}
 
 /** Verifica la sesión y que quien llama sea propietario o administrador. */
 export async function authorizeManager(
@@ -107,6 +134,17 @@ export async function authorizeManager(
     return reply({ ok: false, error: "Debes iniciar sesión." }, 401);
   }
 
+  // El administrador de la plataforma puede gestionar el equipo de cualquier empresa.
+  const { data: platformAdmin } = await supabase
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (platformAdmin) {
+    return { supabase, userId: user.id, role: "owner", platform: true };
+  }
+
   const { data: member } = await supabase
     .from("business_members")
     .select("role")
@@ -122,5 +160,5 @@ export async function authorizeManager(
     );
   }
 
-  return { supabase, userId: user.id, role: member.role };
+  return { supabase, userId: user.id, role: member.role, platform: false };
 }

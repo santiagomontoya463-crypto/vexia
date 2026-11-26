@@ -1,641 +1,520 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useAuth, type BusinessSummary } from "../../lib/auth/AuthProvider";
+import { useAuth } from "../../lib/auth/AuthProvider";
+import { MODULES } from "../../lib/modules";
+import { printSubscriptionReceipt } from "../../lib/billing/subscription-receipt";
 import {
   cardClass,
-  daysUntil,
   formatDate,
   ghostButton,
   inputClass,
   money,
   primaryButton,
-  type PaymentAccount,
   type Plan,
 } from "../../components/master/shared";
 
-type NamedRef = { name?: string | null; label?: string | null } | { name?: string | null; label?: string | null }[] | null;
-
-type OwnRequest = {
-  id: string;
-  months: number;
-  amount: number;
+type BusinessRow = {
+  plan_id: string | null;
+  status: "trial" | "active" | "suspended" | "cancelled";
+  trial_ends_at: string | null;
+  subscription_ends_at: string | null;
   currency: string;
-  reference: string;
-  paid_on: string;
-  status: "pending" | "approved" | "rejected";
-  reject_reason: string | null;
-  created_at: string;
-  plan: NamedRef;
-  account: NamedRef;
 };
 
-type ConfirmedPayment = {
+type PaymentRow = {
   id: string;
+  plan_id: string | null;
   amount: number;
   currency: string;
   months: number;
-  period_start: string;
   period_end: string;
+  status: "confirmed" | "voided";
+  created_at: string;
+  receipt_number: number | null;
+  method: string;
+  reference: string | null;
+};
+
+type RequestRow = {
+  id: string;
+  plan_id: string | null;
+  months: number;
+  amount: number;
+  currency: string;
+  status: "pending" | "approved" | "rejected";
+  reject_reason: string | null;
   reference: string | null;
   created_at: string;
 };
 
-const MONTH_OPTIONS = [1, 3, 6, 12];
+const METHODS = [
+  { value: "transfer", label: "Transferencia" },
+  { value: "cash", label: "Efectivo" },
+  { value: "card", label: "Tarjeta" },
+  { value: "other", label: "Otro" },
+];
 
-const REQUEST_LABELS: Record<OwnRequest["status"], string> = {
-  pending: "En revisión",
-  approved: "Aprobado",
-  rejected: "Rechazado",
+const REQUEST_LABELS: Record<RequestRow["status"], { text: string; style: string }> = {
+  pending: { text: "Pendiente de confirmar", style: "bg-amber-100 text-amber-800" },
+  approved: { text: "Confirmado", style: "bg-emerald-100 text-emerald-800" },
+  rejected: { text: "Rechazado", style: "bg-rose-100 text-rose-800" },
 };
 
-const REQUEST_STYLES: Record<OwnRequest["status"], string> = {
-  pending: "bg-amber-100 text-amber-800",
-  approved: "bg-emerald-100 text-emerald-800",
-  rejected: "bg-rose-100 text-rose-800",
-};
+export default function SubscriptionPage() {
+  const { supabase, activeMembership, blockedReason, refresh } = useAuth();
+  const business = activeMembership?.business;
+  const role = activeMembership?.role;
+  const canPay = role === "owner" || role === "admin";
 
-function refName(value: NamedRef, key: "name" | "label"): string | null {
-  const item = Array.isArray(value) ? value[0] : value;
-
-  return item?.[key] ?? null;
-}
-
-function todayInput(): string {
-  const now = new Date();
-
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 10);
-}
-
-function describeState(business: BusinessSummary): {
-  label: string;
-  style: string;
-  detail: string;
-  canPay: boolean;
-} {
-  if (business.status === "suspended") {
-    return {
-      label: "Suspendida",
-      style: "bg-rose-100 text-rose-800",
-      detail: business.suspended_reason
-        ? `Motivo: ${business.suspended_reason}. Comunícate con soporte para reactivarla.`
-        : "Comunícate con soporte para reactivarla.",
-      canPay: false,
-    };
-  }
-
-  if (business.status === "cancelled") {
-    return {
-      label: "Cancelada",
-      style: "bg-slate-200 text-slate-700",
-      detail: "Esta empresa fue cancelada. Comunícate con soporte.",
-      canPay: false,
-    };
-  }
-
-  const isTrial = business.status === "trial";
-  const end = isTrial ? business.trial_ends_at : business.subscription_ends_at;
-  const days = daysUntil(end);
-
-  if (!end || days === null) {
-    return {
-      label: isTrial ? "En prueba" : "Activa",
-      style: isTrial ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800",
-      detail: "Sin fecha de vencimiento.",
-      canPay: true,
-    };
-  }
-
-  if (days < 0) {
-    return {
-      label: isTrial ? "Prueba vencida" : "Suscripción vencida",
-      style: "bg-orange-200 text-orange-900",
-      detail: `Venció el ${formatDate(end)}. Paga tu plan para volver a usar STIAN.`,
-      canPay: true,
-    };
-  }
-
-  return {
-    label: isTrial ? "En prueba" : "Activa",
-    style: isTrial ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800",
-    detail: `${isTrial ? "Tu prueba termina" : "Tu suscripción vence"} el ${formatDate(end)} (${
-      days === 0 ? "hoy" : `en ${days} ${days === 1 ? "día" : "días"}`
-    }).`,
-    canPay: true,
-  };
-}
-
-export default function SuscripcionPage() {
-  const { supabase, activeMembership, refresh } = useAuth();
-  const business = activeMembership?.business ?? null;
-  const isOwner = activeMembership?.role === "owner";
-
-  const [planName, setPlanName] = useState<string | null>(null);
+  const [row, setRow] = useState<BusinessRow | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
-  const [requests, setRequests] = useState<OwnRequest[]>([]);
-  const [payments, setPayments] = useState<ConfirmedPayment[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [info, setInfo] = useState({ instructions: "", support: "" });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   const [planId, setPlanId] = useState("");
-  const [months, setMonths] = useState("1");
-  const [accountId, setAccountId] = useState("");
+  const [months, setMonths] = useState(1);
+  const [amount, setAmount] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [method, setMethod] = useState("transfer");
   const [reference, setReference] = useState("");
-  const [paidOn, setPaidOn] = useState(todayInput());
   const [notes, setNotes] = useState("");
-
-  const businessId = business?.id ?? null;
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    if (!supabase || !businessId) return;
+    if (!supabase || !business) return;
 
-    setLoading(true);
-
-    const [planResult, plansResult, accountsResult, requestsResult, paymentsResult] =
+    const [rowResult, plansResult, paymentsResult, requestsResult, infoResult] =
       await Promise.all([
-        supabase.from("businesses").select("plan:plans(name)").eq("id", businessId).maybeSingle(),
         supabase
-          .from("plans")
-          .select("*")
-          .eq("active", true)
-          .gt("price_monthly", 0)
-          .order("sort_order"),
-        supabase
-          .from("platform_payment_accounts")
-          .select("*")
-          .eq("active", true)
-          .order("sort_order")
-          .order("created_at"),
-        supabase
-          .from("subscription_requests")
-          .select("*, plan:plans(name), account:platform_payment_accounts(label)")
-          .eq("business_id", businessId)
-          .order("created_at", { ascending: false })
-          .limit(20),
+          .from("businesses")
+          .select("plan_id, status, trial_ends_at, subscription_ends_at, currency")
+          .eq("id", business.id)
+          .maybeSingle(),
+        supabase.from("plans").select("*").eq("active", true).order("sort_order"),
         supabase
           .from("subscription_payments")
-          .select("id, amount, currency, months, period_start, period_end, reference, created_at")
-          .eq("business_id", businessId)
-          .eq("status", "confirmed")
+          .select("id, plan_id, amount, currency, months, period_end, status, created_at, receipt_number, method, reference")
+          .eq("business_id", business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("payment_requests")
+          .select("id, plan_id, months, amount, currency, status, reject_reason, reference, created_at")
+          .eq("business_id", business.id)
           .order("created_at", { ascending: false })
           .limit(20),
+        supabase.rpc("get_payment_info"),
       ]);
 
-    const planRow = planResult.data as { plan: NamedRef } | null;
+    const businessRow = rowResult.data as BusinessRow | null;
+    const planList = (plansResult.data as Plan[] | null) ?? [];
 
-    setPlanName(planRow ? refName(planRow.plan, "name") : null);
-
-    const loadedPlans = (plansResult.data as Plan[] | null) ?? [];
-
-    setPlans(loadedPlans);
-    setAccounts((accountsResult.data as PaymentAccount[] | null) ?? []);
-    setRequests((requestsResult.data as OwnRequest[] | null) ?? []);
-    setPayments((paymentsResult.data as ConfirmedPayment[] | null) ?? []);
-
-    setPlanId((current) =>
-      current && loadedPlans.some((plan) => plan.id === current)
-        ? current
-        : (loadedPlans[0]?.id ?? ""),
-    );
-
+    setRow(businessRow);
+    setPlans(planList);
+    setPayments((paymentsResult.data as PaymentRow[] | null) ?? []);
+    setRequests((requestsResult.data as RequestRow[] | null) ?? []);
+    setInfo((infoResult.data as { instructions: string; support: string } | null) ?? { instructions: "", support: "" });
+    setPlanId((current) => current || businessRow?.plan_id || planList[0]?.id || "");
     setLoading(false);
-  }, [supabase, businessId]);
+  }, [supabase, business]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (!business) {
-    return (
-      <main className="p-8 text-sm text-slate-500">
-        No hay una empresa seleccionada.
-      </main>
-    );
+  const plan = plans.find((item) => item.id === planId);
+  const suggested = plan ? plan.price_monthly * months : 0;
+  const shownAmount = touched ? amount : suggested ? String(suggested) : "";
+  const currency = row?.currency ?? business?.currency ?? "COP";
+
+  const reference_date =
+    row?.status === "trial" ? row.trial_ends_at : row?.subscription_ends_at;
+  const days = reference_date
+    ? Math.ceil((new Date(reference_date).getTime() - Date.now()) / 86_400_000)
+    : null;
+
+  function statusText(): { title: string; detail: string; style: string } {
+    if (!row) return { title: "Cargando...", detail: "", style: "bg-slate-100 text-slate-700" };
+
+    if (row.status === "suspended") {
+      return { title: "Suspendida", detail: blockedReason ?? "Comunícate con soporte.", style: "bg-rose-100 text-rose-800" };
+    }
+
+    if (row.status === "cancelled") {
+      return { title: "Cancelada", detail: "La suscripción fue cancelada.", style: "bg-slate-200 text-slate-700" };
+    }
+
+    const label = row.status === "trial" ? "Prueba gratuita" : "Suscripción activa";
+
+    if (days === null) return { title: label, detail: "", style: "bg-emerald-100 text-emerald-800" };
+
+    if (days < 0) {
+      return {
+        title: `${row.status === "trial" ? "Prueba vencida" : "Suscripción vencida"}`,
+        detail: `Venció el ${formatDate(reference_date ?? null)}. Realiza tu pago para volver a usar STIAN.`,
+        style: "bg-orange-200 text-orange-900",
+      };
+    }
+
+    return {
+      title: label,
+      detail: `Hasta el ${formatDate(reference_date ?? null)} · ${days === 0 ? "vence hoy" : `faltan ${days} ${days === 1 ? "día" : "días"}`}`,
+      style: days <= 7 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800",
+    };
   }
 
-  const state = describeState(business);
-  const pending = requests.find((item) => item.status === "pending");
-  const lastRequest = requests[0];
-  const selectedPlan = plans.find((plan) => plan.id === planId);
-  const total = selectedPlan ? selectedPlan.price_monthly * Number(months) : 0;
-  const currency = selectedPlan?.currency ?? business.currency;
-  const canRequest = isOwner && state.canPay && !pending;
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function report(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
+    setMessage("");
 
-    if (!supabase || !businessId) return;
+    if (!supabase || !business) return;
 
-    if (!selectedPlan) {
+    const value = Number(shownAmount);
+
+    if (!planId) {
       setError("Elige un plan.");
       return;
     }
 
-    if (reference.trim().length < 3) {
-      setError("Escribe la referencia o número de comprobante de tu transferencia.");
+    if (!Number.isFinite(value) || value < 0) {
+      setError("Escribe el valor que pagaste.");
       return;
     }
 
-    setSubmitting(true);
-    setError("");
+    setBusy(true);
 
-    const { data, error: rpcError } = await supabase.rpc("submit_payment_request", {
-      p_business: businessId,
-      p_plan: selectedPlan.id,
-      p_months: Number(months),
-      p_account: accountId || null,
-      p_reference: reference.trim(),
-      p_paid_on: paidOn,
-      p_notes: notes.trim() || null,
+    const { error: rpcError } = await supabase.rpc("request_payment", {
+      p_business: business.id,
+      p_plan: planId,
+      p_months: months,
+      p_amount: value,
+      p_method: method,
+      p_reference: reference || null,
+      p_notes: notes || null,
     });
 
-    setSubmitting(false);
+    setBusy(false);
 
     if (rpcError) {
       setError(rpcError.message);
       return;
     }
 
+    setMessage(
+      "Recibimos el aviso de tu pago. Lo confirmaremos pronto y tu suscripción se activará. Te avisaremos por correo.",
+    );
     setReference("");
     setNotes("");
-    setMessage("Recibimos tu pago. Lo revisaremos y activaremos tu plan en cuanto lo confirmemos.");
-    window.setTimeout(() => setMessage(""), 8000);
-
-    if (typeof data === "string") {
-      // Aviso por correo al administrador: si no está configurado, no pasa nada.
-      void fetch("/api/subscription/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId: data, event: "submitted" }),
-      }).catch(() => undefined);
-    }
-
     await load();
-  }
-
-  async function reloadStatus() {
     await refresh();
-    await load();
   }
 
-  async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setMessage("Copiado.");
-      window.setTimeout(() => setMessage(""), 2500);
-    } catch {
-      setError("No fue posible copiar. Selecciónalo y cópialo a mano.");
-    }
-  }
+  if (!business) return null;
+
+  const status = statusText();
+  const planName = (id: string | null) => plans.find((item) => item.id === id)?.name ?? null;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-5 text-slate-900 dark:text-slate-100 sm:p-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">
-          {business.name}
-        </p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Suscripción</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Consulta el estado de tu plan, paga por transferencia y reporta tu comprobante.
-        </p>
+    <main className="min-h-screen bg-[#f5f6fc] text-slate-900 dark:bg-[#080d19] dark:text-slate-100">
+      <header className="border-b border-slate-200/80 bg-white/75 px-5 py-5 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0b1220]/80 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-[1100px]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">
+            {business.name}
+          </p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            Suscripción y pagos
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Consulta tu plan, paga y descarga tus comprobantes.
+          </p>
+        </div>
       </header>
 
-      {error && (
-        <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <div className="mx-auto max-w-[1100px] space-y-6 p-5 sm:p-8 lg:p-10">
+        <section className={cardClass}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Estado de tu cuenta</p>
+              <p className="mt-1 text-lg font-bold">{status.title}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{status.detail}</p>
+            </div>
 
-      {message && (
-        <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
-          {message}
-        </p>
-      )}
-
-      <section className={cardClass}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs text-slate-400">Estado de tu empresa</p>
-            <p className="mt-1 text-lg font-bold">
-              {planName ? `Plan ${planName}` : "Sin plan asignado"}
-            </p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{state.detail}</p>
-          </div>
-
-          <div className="flex flex-col items-end gap-2">
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${state.style}`}>
-              {state.label}
+            <span className={`rounded-full px-4 py-1.5 text-xs font-bold ${status.style}`}>
+              {planName(row?.plan_id ?? null) ?? "Sin plan elegido"}
             </span>
-            <button type="button" onClick={() => void reloadStatus()} className={ghostButton}>
-              Actualizar estado
-            </button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {pending && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-          <p className="font-bold">Tu pago está en revisión</p>
-          <p className="mt-1">
-            Enviaste {money(pending.amount, pending.currency)} (referencia {pending.reference}) el{" "}
-            {formatDate(pending.created_at)}. Te activaremos el plan en cuanto lo confirmemos. Usa
-            «Actualizar estado» para ver el cambio.
+        {!canPay && (
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            Solo el propietario o un administrador puede pagar la suscripción. Puedes consultar el
+            estado aquí.
           </p>
-        </section>
-      )}
+        )}
 
-      {!pending && lastRequest?.status === "rejected" && (
-        <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
-          <p className="font-bold">Tu último pago no pudo confirmarse</p>
-          <p className="mt-1">
-            {lastRequest.reject_reason ?? "Revisa los datos y envíalo de nuevo."} Puedes reportarlo
-            otra vez con los datos correctos.
-          </p>
-        </section>
-      )}
+        {loading && <p className="text-sm text-slate-500">Cargando...</p>}
 
-      {!isOwner && (
-        <section className={cardClass}>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Solo el propietario de la empresa puede reportar pagos. Pídele que entre a esta pantalla
-            para renovar la suscripción.
-          </p>
-        </section>
-      )}
+        <section>
+          <h2 className="mb-3 font-bold">1. Elige tu plan</h2>
 
-      {isOwner && !state.canPay && (
-        <section className={cardClass}>
-          <p className="text-sm text-slate-600 dark:text-slate-300">{state.detail}</p>
-        </section>
-      )}
+          {plans.length === 0 && !loading && (
+            <p className="text-sm text-slate-500">Aún no hay planes disponibles. Comunícate con soporte.</p>
+          )}
 
-      {loading && <p className="text-sm text-slate-500">Cargando...</p>}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {plans.map((item) => {
+              const selected = item.id === planId;
 
-      {canRequest && !loading && (
-        <>
-          <section className={cardClass}>
-            <h2 className="font-bold">1. Elige tu plan</h2>
-
-            {plans.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                Todavía no hay planes con precio disponibles. Comunícate con soporte.
-              </p>
-            ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {plans.map((plan) => (
-                  <label
-                    key={plan.id}
-                    className={`cursor-pointer rounded-xl border p-4 text-sm transition ${
-                      planId === plan.id
-                        ? "border-violet-500 bg-violet-50 dark:bg-violet-500/10"
-                        : "border-slate-200 dark:border-white/10"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="plan"
-                      value={plan.id}
-                      checked={planId === plan.id}
-                      onChange={() => setPlanId(plan.id)}
-                      className="sr-only"
-                    />
-                    <p className="font-bold">{plan.name}</p>
-                    <p className="mt-1 text-lg font-bold">
-                      {money(plan.price_monthly, plan.currency)}
-                      <span className="text-xs font-normal text-slate-500"> / mes</span>
-                    </p>
-                    {plan.description && (
-                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        {plan.description}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {plan.max_users ? `Hasta ${plan.max_users} usuarios` : "Usuarios ilimitados"}
-                    </p>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-wrap items-end gap-4">
-              <label className="text-sm">
-                <span className="mb-1 block font-semibold">Meses a pagar</span>
-                <select
-                  value={months}
-                  onChange={(event) => setMonths(event.target.value)}
-                  className={`${inputClass} max-w-[160px]`}
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={!canPay}
+                  onClick={() => {
+                    setPlanId(item.id);
+                    setTouched(false);
+                  }}
+                  className={`${cardClass} text-left transition ${
+                    selected
+                      ? "ring-2 ring-violet-500"
+                      : "hover:border-violet-300"
+                  } disabled:cursor-default`}
                 >
-                  {MONTH_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {value} {value === 1 ? "mes" : "meses"}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-lg font-bold">{item.name}</h3>
+                    {item.id === row?.plan_id && (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-700">
+                        Tu plan
+                      </span>
+                    )}
+                  </div>
 
-              <p className="text-sm">
-                Total a transferir:{" "}
-                <strong className="text-lg">{money(total, currency)}</strong>
-              </p>
+                  <p className="mt-1 text-2xl font-extrabold">
+                    {item.price_monthly > 0 ? money(item.price_monthly, item.currency) : "Consultar"}
+                    {item.price_monthly > 0 && (
+                      <span className="text-sm font-medium text-slate-500"> / mes</span>
+                    )}
+                  </p>
+
+                  {item.description && (
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.description}</p>
+                  )}
+
+                  <ul className="mt-3 space-y-1 text-sm">
+                    <li>
+                      👥 {item.max_users ? `Hasta ${item.max_users} usuarios` : "Usuarios ilimitados"}
+                    </li>
+                    {item.modules.length > 0 && (
+                      <li className="text-slate-500 dark:text-slate-400">
+                        {item.modules
+                          .map((id) => MODULES.find((module) => module.id === id)?.label)
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </li>
+                    )}
+                  </ul>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {canPay && (
+          <section className={cardClass}>
+            <h2 className="font-bold">2. Paga y avísanos</h2>
+
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium">
+                  Periodo a pagar
+                  <select
+                    value={months}
+                    onChange={(event) => {
+                      setMonths(Number(event.target.value));
+                      setTouched(false);
+                    }}
+                    className={`${inputClass} mt-1`}
+                  >
+                    {[1, 2, 3, 6, 12].map((item) => (
+                      <option key={item} value={item}>
+                        {item} {item === 1 ? "mes" : "meses"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <p className="mt-4 rounded-xl bg-violet-50 p-4 text-sm text-violet-900 dark:bg-violet-500/10 dark:text-violet-100">
+                  Total a pagar:{" "}
+                  <strong className="text-lg">
+                    {suggested > 0 ? money(suggested, currency) : "según tu plan"}
+                  </strong>
+                </p>
+
+                <div className="mt-4">
+                  <p className="text-sm font-semibold">Cómo pagar</p>
+                  <p className="mt-2 whitespace-pre-line rounded-xl border border-slate-200 p-4 text-sm dark:border-white/10">
+                    {info.instructions ||
+                      "Aún no se han configurado las instrucciones de pago. Comunícate con soporte."}
+                  </p>
+                  {info.support && (
+                    <p className="mt-2 text-xs text-slate-500">Soporte: {info.support}</p>
+                  )}
+                </div>
+              </div>
+
+              <form onSubmit={report} noValidate className="space-y-3">
+                <p className="text-sm font-semibold">Cuando pagues, avísanos aquí</p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-medium">
+                    Valor pagado
+                    <input
+                      type="number"
+                      min="0"
+                      value={shownAmount}
+                      onChange={(event) => {
+                        setTouched(true);
+                        setAmount(event.target.value);
+                      }}
+                      className={`${inputClass} mt-1`}
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium">
+                    Forma de pago
+                    <select
+                      value={method}
+                      onChange={(event) => setMethod(event.target.value)}
+                      className={`${inputClass} mt-1`}
+                    >
+                      {METHODS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className="block text-sm font-medium">
+                  Número de comprobante o referencia
+                  <input
+                    value={reference}
+                    onChange={(event) => setReference(event.target.value)}
+                    placeholder="Ej. número de la transferencia"
+                    className={`${inputClass} mt-1`}
+                  />
+                </label>
+
+                <label className="block text-sm font-medium">
+                  Notas (opcional)
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    className={`${inputClass} mt-1`}
+                  />
+                </label>
+
+                {error && (
+                  <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+                    {error}
+                  </p>
+                )}
+
+                {message && (
+                  <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+                    {message}
+                  </p>
+                )}
+
+                <button type="submit" disabled={busy || !planId} className={primaryButton}>
+                  {busy ? "Enviando..." : "Ya pagué, avisar"}
+                </button>
+              </form>
             </div>
           </section>
+        )}
 
+        {requests.length > 0 && (
           <section className={cardClass}>
-            <h2 className="font-bold">2. Haz la transferencia</h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Transfiere el valor exacto a cualquiera de estas cuentas y guarda el comprobante.
-            </p>
+            <h2 className="font-bold">Tus avisos de pago</h2>
 
-            {accounts.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                Aún no hay cuentas de cobro publicadas. Comunícate con soporte para recibir los datos
-                de pago.
-              </p>
-            ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {accounts.map((account) => (
-                  <article
-                    key={account.id}
-                    className="rounded-xl border border-slate-200 p-4 text-sm dark:border-white/10"
+            <ul className="mt-3 divide-y divide-slate-200 text-sm dark:divide-white/10">
+              {requests.map((item) => (
+                <li key={item.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {formatDate(item.created_at)} · {planName(item.plan_id) ?? "Plan"} · {item.months}{" "}
+                    {item.months === 1 ? "mes" : "meses"} · {money(Number(item.amount), item.currency)}
+                    {item.status === "rejected" && item.reject_reason && (
+                      <span className="block text-xs text-rose-600">Motivo: {item.reject_reason}</span>
+                    )}
+                  </span>
+                  <span
+                    className={`self-start rounded-full px-3 py-1 text-xs font-bold ${REQUEST_LABELS[item.status].style}`}
                   >
-                    <p className="font-bold">{account.label}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {[account.bank_name, account.account_type].filter(Boolean).join(" · ")}
-                    </p>
+                    {REQUEST_LABELS[item.status].text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="font-mono text-base font-bold">
-                        {account.account_number}
-                      </span>
+        <section className={cardClass}>
+          <h2 className="font-bold">Historial de pagos</h2>
+
+          {payments.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">Todavía no tienes pagos confirmados.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-slate-200 text-sm dark:divide-white/10">
+              {payments.map((payment) => (
+                <li key={payment.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className={payment.status === "voided" ? "opacity-50" : ""}>
+                    <strong>No. {payment.receipt_number ?? "—"}</strong> · {formatDate(payment.created_at)} ·{" "}
+                    {payment.months} {payment.months === 1 ? "mes" : "meses"} · activa hasta{" "}
+                    {formatDate(payment.period_end)}
+                    {payment.status === "voided" && (
+                      <span className="ml-2 text-xs text-rose-600">anulado</span>
+                    )}
+                  </span>
+
+                  <span className="flex items-center gap-3">
+                    <strong>{money(Number(payment.amount), payment.currency)}</strong>
+                    {payment.status === "confirmed" && (
                       <button
                         type="button"
-                        onClick={() => void copy(account.account_number)}
+                        onClick={() =>
+                          printSubscriptionReceipt({
+                            number: payment.receipt_number,
+                            businessName: business.name,
+                            planName: planName(payment.plan_id),
+                            amount: Number(payment.amount),
+                            currency: payment.currency,
+                            months: payment.months,
+                            periodEnd: payment.period_end,
+                            method: payment.method,
+                            reference: payment.reference,
+                            date: payment.created_at,
+                          })
+                        }
                         className={ghostButton}
                       >
-                        Copiar
+                        Comprobante
                       </button>
-                    </div>
-
-                    <p className="mt-2">
-                      Titular: <strong>{account.holder_name}</strong>
-                      {account.holder_document ? ` (${account.holder_document})` : ""}
-                    </p>
-
-                    {account.instructions && (
-                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-                        {account.instructions}
-                      </p>
                     )}
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <form onSubmit={submit} className={`${cardClass} space-y-4`}>
-            <h2 className="font-bold">3. Reporta tu pago</h2>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block font-semibold">Cuenta a la que pagaste</span>
-                <select
-                  value={accountId}
-                  onChange={(event) => setAccountId(event.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Prefiero no indicarla</option>
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm">
-                <span className="mb-1 block font-semibold">Fecha del pago</span>
-                <input
-                  type="date"
-                  value={paidOn}
-                  max={todayInput()}
-                  onChange={(event) => setPaidOn(event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold">
-                  Referencia o número del comprobante
-                </span>
-                <input
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                  placeholder="Ej. 123456789"
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold">Comentario (opcional)</span>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  rows={2}
-                  className={inputClass}
-                />
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting || !selectedPlan}
-              className={primaryButton}
-            >
-              {submitting ? "Enviando..." : `Reportar pago de ${money(total, currency)}`}
-            </button>
-          </form>
-        </>
-      )}
-
-      {requests.length > 0 && (
-        <section className={cardClass}>
-          <h2 className="font-bold">Pagos reportados</h2>
-
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-slate-400">
-                <tr>
-                  <th className="py-2 pr-3">Enviado</th>
-                  <th className="py-2 pr-3">Plan</th>
-                  <th className="py-2 pr-3">Valor</th>
-                  <th className="py-2 pr-3">Referencia</th>
-                  <th className="py-2">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((request) => (
-                  <tr
-                    key={request.id}
-                    className="border-t border-slate-100 dark:border-white/[0.06]"
-                  >
-                    <td className="py-2 pr-3">{formatDate(request.created_at)}</td>
-                    <td className="py-2 pr-3">
-                      {refName(request.plan, "name") ?? "—"} · {request.months}{" "}
-                      {request.months === 1 ? "mes" : "meses"}
-                    </td>
-                    <td className="py-2 pr-3">{money(request.amount, request.currency)}</td>
-                    <td className="py-2 pr-3 font-mono">{request.reference}</td>
-                    <td className="py-2">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${REQUEST_STYLES[request.status]}`}
-                      >
-                        {REQUEST_LABELS[request.status]}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
-      )}
-
-      {payments.length > 0 && (
-        <section className={cardClass}>
-          <h2 className="font-bold">Historial de pagos confirmados</h2>
-
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-slate-400">
-                <tr>
-                  <th className="py-2 pr-3">Confirmado</th>
-                  <th className="py-2 pr-3">Periodo cubierto</th>
-                  <th className="py-2">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => (
-                  <tr
-                    key={payment.id}
-                    className="border-t border-slate-100 dark:border-white/[0.06]"
-                  >
-                    <td className="py-2 pr-3">{formatDate(payment.created_at)}</td>
-                    <td className="py-2 pr-3">
-                      {formatDate(payment.period_start)} – {formatDate(payment.period_end)}
-                    </td>
-                    <td className="py-2">{money(payment.amount, payment.currency)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      </div>
     </main>
   );
 }

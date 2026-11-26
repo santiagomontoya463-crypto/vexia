@@ -17,6 +17,9 @@ export type MasterBusiness = {
   last_activity: string | null;
   payments_total: number;
   currency: string;
+  phone?: string | null;
+  email?: string | null;
+  document_number?: string | null;
 };
 
 export type Plan = {
@@ -50,40 +53,6 @@ export type Overview = {
 export type Metrics = {
   growth: { month: string; businesses: number; revenue: number }[];
   by_type: { type: string; count: number }[];
-};
-
-export type PaymentAccount = {
-  id: string;
-  label: string;
-  kind: "bank" | "wallet" | "other";
-  bank_name: string | null;
-  account_type: string | null;
-  account_number: string;
-  holder_name: string;
-  holder_document: string | null;
-  instructions: string | null;
-  active: boolean;
-  sort_order: number;
-};
-
-export type PaymentRequest = {
-  id: string;
-  business_id: string;
-  business_name: string;
-  plan_id: string | null;
-  plan_name: string | null;
-  months: number;
-  amount: number;
-  currency: string;
-  account_label: string | null;
-  reference: string;
-  paid_on: string;
-  notes: string | null;
-  status: "pending" | "approved" | "rejected";
-  reject_reason: string | null;
-  requested_by_email: string | null;
-  created_at: string;
-  reviewed_at: string | null;
 };
 
 export type EffectiveState =
@@ -206,9 +175,6 @@ export const ACTION_LABELS: Record<string, string> = {
   "master.business_deleted": "Empresa eliminada",
   "master.payment_recorded": "Pago registrado",
   "master.payment_voided": "Pago anulado",
-  "master.request_approved": "Solicitud de pago aprobada",
-  "master.request_rejected": "Solicitud de pago rechazada",
-  "subscription.request_submitted": "Pago reportado por la empresa",
   "master.admin_added": "Administrador de plataforma agregado",
   "master.admin_removed": "Administrador de plataforma quitado",
   "team.invited": "Invitación enviada",
